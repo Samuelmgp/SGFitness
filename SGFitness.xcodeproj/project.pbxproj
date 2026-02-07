@@ -15,6 +15,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Assets.xcassets,
+				ContentView.swift,
 				Models/Badge.swift,
 				Models/BadgeAward.swift,
 				Models/ExerciseDefinition.swift,
@@ -30,7 +31,22 @@
 				SGFitness.swift,
 				SGFitnessApp.swift,
 				ViewModels/ActiveWorkoutViewModel.swift,
-				ViewModels/ContentView.swift,
+				ViewModels/ExercisePickerViewModel.swift,
+				ViewModels/TemplateEditorViewModel.swift,
+				ViewModels/TemplateListViewModel.swift,
+				ViewModels/WorkoutDetailViewModel.swift,
+				ViewModels/WorkoutHistoryViewModel.swift,
+				Views/ActiveWorkout/ActiveWorkoutView.swift,
+				Views/ActiveWorkout/ExerciseRowView.swift,
+				Views/ActiveWorkout/RestTimerView.swift,
+				Views/ActiveWorkout/SetRowView.swift,
+				Views/Shared/BadgeView.swift,
+				Views/Shared/CustomButton.swift,
+				Views/Shared/ExercisePickerView.swift,
+				Views/TemplateManagement/TemplateEditorView.swift,
+				Views/TemplateManagement/TemplateListView.swift,
+				Views/WorkoutHistory/WorkoutDetailView.swift,
+				Views/WorkoutHistory/WorkoutHistoryView.swift,
 			);
 			target = DF0CB8952F3728BC0014DDE3 /* SGFitness */;
 		};

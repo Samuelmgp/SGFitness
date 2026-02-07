@@ -85,7 +85,7 @@ struct ContentView: View {
 
                 Image(systemName: "figure.strengthtraining.traditional")
                     .font(.system(size: 64))
-                    .foregroundStyle(.accent)
+                    .foregroundStyle(.tint)
 
                 Text("Ready to train?")
                     .font(.title2.bold())
