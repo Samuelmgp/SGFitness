@@ -5,8 +5,6 @@ import Observation
 // MARK: - WorkoutDetailViewModel
 // Displays a single completed session with full drill-down.
 // Supports edit mode for correcting past data.
-//
-// Stub — method bodies will be implemented in a future task.
 
 @Observable
 final class WorkoutDetailViewModel {
@@ -52,18 +50,27 @@ final class WorkoutDetailViewModel {
     }
 
     func updateSet(_ set: PerformedSet, reps: Int, weight: Double?) {
-        // TODO: Update set values, set session.updatedAt
+        set.reps = reps
+        set.weight = weight
+        session.updatedAt = .now
     }
 
     func updateEffort(_ exercise: ExerciseSession, effort: Int) {
-        // TODO: Set effort, set session.updatedAt
+        exercise.effort = max(1, min(effort, 10))
+        session.updatedAt = .now
     }
 
     func updateNotes(_ notes: String) {
-        // TODO: Update session notes, set session.updatedAt
+        session.notes = notes
+        session.updatedAt = .now
     }
 
     func save() {
-        // TODO: Persist edits, set session.updatedAt
+        session.updatedAt = .now
+        do {
+            try modelContext.save()
+        } catch {
+            print("[WorkoutDetailViewModel] Failed to save: \(error)")
+        }
     }
 }

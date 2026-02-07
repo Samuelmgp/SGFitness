@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - WorkoutHistoryView
 // Target folder: Views/WorkoutHistory/
@@ -11,6 +12,7 @@ import SwiftUI
 
 struct WorkoutHistoryView: View {
 
+    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: WorkoutHistoryViewModel
 
     var body: some View {
@@ -51,8 +53,8 @@ struct WorkoutHistoryView: View {
         }
         .listStyle(.plain)
         .navigationDestination(for: WorkoutSession.self) { session in
-            // TODO: Initialize WorkoutDetailViewModel and pass to WorkoutDetailView
-            Text("Detail for: \(session.name)")
+            let detailVM = WorkoutDetailViewModel(modelContext: modelContext, session: session)
+            WorkoutDetailView(viewModel: detailVM)
         }
     }
 

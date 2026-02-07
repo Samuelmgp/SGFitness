@@ -1,52 +1,44 @@
 import SwiftUI
 
 // MARK: - SetRowView
-// Target folder: Views/ActiveWorkout/
-//
 // Displays a single set within an exercise row.
 // Shows the set number, reps, weight, and completion status.
 // Pre-populated sets (from template) start as incomplete and can be
-// tapped to mark as done. Completed sets show a checkmark.
-//
-// Binds to: PerformedSet model properties.
+// tapped to mark as done. Supports inline editing of reps/weight.
 
 struct SetRowView: View {
 
-    /// The set data to display.
     let set: PerformedSet
-
-    /// Callback when the user taps to complete this set.
-    /// Passes the actual reps and weight (may differ from pre-populated values).
     let onComplete: (_ reps: Int, _ weight: Double?) -> Void
+
+    @State private var showingEditAlert = false
+    @State private var editReps: String = ""
+    @State private var editWeight: String = ""
 
     var body: some View {
         HStack {
             // MARK: - Set Number
-            // Binds to: set.order (0-indexed, display as 1-indexed)
             Text("\(set.order + 1)")
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 36, alignment: .leading)
 
-            // MARK: - Reps
-            // Binds to: set.reps
+            // MARK: - Reps (tappable to edit)
             Text("\(set.reps)")
                 .font(.body.monospacedDigit())
                 .frame(maxWidth: .infinity, alignment: .center)
 
-            // MARK: - Weight
-            // Binds to: set.weight (stored in kg, display conversion happens in parent)
+            // MARK: - Weight (tappable to edit)
             Text(formatWeight(set.weight))
                 .font(.body.monospacedDigit())
                 .frame(maxWidth: .infinity, alignment: .center)
 
             // MARK: - Completion Toggle
-            // Binds to: set.isCompleted
             Button {
                 if !set.isCompleted {
-                    // Mark as completed with current values.
-                    // TODO: Show inline editor to adjust reps/weight before confirming.
-                    onComplete(set.reps, set.weight)
+                    editReps = "\(set.reps)"
+                    editWeight = set.weight.map { "\(Int($0))" } ?? ""
+                    showingEditAlert = true
                 }
             } label: {
                 Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -57,15 +49,35 @@ struct SetRowView: View {
             .frame(width: 44, alignment: .center)
         }
         .padding(.vertical, 2)
-        // Dim completed sets to visually separate "done" from "to do"
         .opacity(set.isCompleted ? 0.6 : 1.0)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !set.isCompleted {
+                editReps = "\(set.reps)"
+                editWeight = set.weight.map { "\(Int($0))" } ?? ""
+                showingEditAlert = true
+            }
+        }
+        .alert("Complete Set", isPresented: $showingEditAlert) {
+            TextField("Reps", text: $editReps)
+                .keyboardType(.numberPad)
+            TextField("Weight (optional)", text: $editWeight)
+                .keyboardType(.decimalPad)
+            Button("Cancel", role: .cancel) { }
+            Button("Complete") {
+                let reps = Int(editReps) ?? set.reps
+                let weight = Double(editWeight)
+                onComplete(reps, weight)
+            }
+        } message: {
+            Text("Adjust reps and weight before completing.")
+        }
     }
 
     // MARK: - Helpers
 
     private func formatWeight(_ weight: Double?) -> String {
         guard let weight else { return "BW" }
-        // Display with no decimal places if weight is a whole number
         if weight.truncatingRemainder(dividingBy: 1) == 0 {
             return "\(Int(weight))"
         }

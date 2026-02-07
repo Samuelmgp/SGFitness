@@ -1,18 +1,14 @@
 import SwiftUI
 
 // MARK: - TemplateListView
-// Target folder: Views/TemplateManagement/
-//
 // Lists all workout templates with search, swipe-to-delete, and a button
 // to create new templates. Tapping a row navigates to TemplateEditorView.
-//
-// Binds to: TemplateListViewModel
 
 struct TemplateListView: View {
+    @Environment(\.modelContext) private var modelContext
 
     @Bindable var viewModel: TemplateListViewModel
 
-    /// Controls the new-template alert.
     @State private var showingNewTemplateAlert = false
     @State private var newTemplateName = ""
 
@@ -22,21 +18,14 @@ struct TemplateListView: View {
                 if viewModel.filteredTemplates.isEmpty && !viewModel.searchText.isEmpty {
                     ContentUnavailableView.search(text: viewModel.searchText)
                 } else if viewModel.templates.isEmpty {
-                    // MARK: - Empty State
-                    ContentUnavailableView(
-                        "No Templates",
-                        systemImage: "list.clipboard",
-                        description: Text("Create a workout template to get started.")
-                    )
+                    emptyState
                 } else {
                     templateList
                 }
             }
             .navigationTitle("Templates")
-            // Binds to: viewModel.searchText
             .searchable(text: $viewModel.searchText, prompt: "Search templates")
             .toolbar {
-                // MARK: - Add Template
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         newTemplateName = ""
@@ -63,10 +52,47 @@ struct TemplateListView: View {
         }
     }
 
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                Spacer(minLength: 40)
+
+                Image(systemName: "list.clipboard")
+                    .font(.system(size: 56))
+                    .foregroundStyle(.tint)
+
+                Text("Start with a Template")
+                    .font(.title2.bold())
+
+                Text("Templates define your workout structure. Create one, then use it to track your sets and reps during a workout.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                Button {
+                    newTemplateName = ""
+                    showingNewTemplateAlert = true
+                } label: {
+                    Label("Create Your Own", systemImage: "plus.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal, 32)
+
+                Spacer()
+            }
+        }
+    }
+
     // MARK: - Template List
 
     private var templateList: some View {
-        // Binds to: viewModel.filteredTemplates
         List {
             ForEach(viewModel.filteredTemplates, id: \.id) { template in
                 NavigationLink(value: template) {
@@ -82,8 +108,8 @@ struct TemplateListView: View {
         }
         .listStyle(.plain)
         .navigationDestination(for: WorkoutTemplate.self) { template in
-            // TODO: Initialize TemplateEditorViewModel and pass to TemplateEditorView
-            Text("Edit: \(template.name)")
+            let editorVM = TemplateEditorViewModel(modelContext: modelContext, template: template)
+            TemplateEditorView(viewModel: editorVM)
         }
     }
 
@@ -91,15 +117,11 @@ struct TemplateListView: View {
 
     private func templateRow(_ template: WorkoutTemplate) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Binds to: template.name
             Text(template.name)
                 .font(.headline)
 
             HStack(spacing: 12) {
-                // Binds to: template.exercises.count
-                Text("\(template.exercises.count) exercises")
-
-                // Binds to: template.updatedAt
+                Label("\(template.exercises.count) exercises", systemImage: "dumbbell")
                 Text("Updated \(template.updatedAt, style: .relative) ago")
             }
             .font(.subheadline)

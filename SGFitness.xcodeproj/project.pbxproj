@@ -40,6 +40,8 @@
 				Views/ActiveWorkout/ExerciseRowView.swift,
 				Views/ActiveWorkout/RestTimerView.swift,
 				Views/ActiveWorkout/SetRowView.swift,
+				Views/OnboardingView.swift,
+				Views/ProfileView.swift,
 				Views/Shared/BadgeView.swift,
 				Views/Shared/CustomButton.swift,
 				Views/Shared/ExercisePickerView.swift,

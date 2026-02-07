@@ -29,6 +29,12 @@ struct ContentView: View {
     // Template picker for "Start from Template".
     @State private var showingTemplatePicker = false
 
+    // Onboarding sheet shown on first launch.
+    @State private var showingOnboarding = false
+
+    // Template count for workout tab hints.
+    @State private var templateCount = 0
+
     var body: some View {
         Group {
             if let user {
@@ -67,11 +73,24 @@ struct ContentView: View {
             .tabItem {
                 Label("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
             }
+
+            // Tab 4: Profile
+            ProfileView(user: user)
+                .tabItem {
+                    Label("Profile", systemImage: "person.circle")
+                }
         }
         // Active workout is presented as a full-screen cover.
         .fullScreenCover(isPresented: $showingActiveWorkout) {
             if let activeWorkoutVM {
                 ActiveWorkoutView(viewModel: activeWorkoutVM)
+            }
+        }
+        // Onboarding sheet on first launch.
+        .sheet(isPresented: $showingOnboarding) {
+            OnboardingView(user: user) {
+                showingOnboarding = false
+                try? modelContext.save()
             }
         }
     }
@@ -87,7 +106,7 @@ struct ContentView: View {
                     .font(.system(size: 64))
                     .foregroundStyle(.tint)
 
-                Text("Ready to train?")
+                Text("Ready to train, \(user.name)?")
                     .font(.title2.bold())
 
                 Text("Start a workout from a template or create one on the fly.")
@@ -101,9 +120,16 @@ struct ContentView: View {
                     Button {
                         showingTemplatePicker = true
                     } label: {
-                        Label("Start from Template", systemImage: "list.clipboard")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                        VStack(spacing: 4) {
+                            Label("Start from Template", systemImage: "list.clipboard")
+                            if templateCount == 0 {
+                                Text("Create a template first in the Templates tab")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
@@ -126,6 +152,10 @@ struct ContentView: View {
                 Spacer()
             }
             .navigationTitle("SGFitness")
+            .onAppear {
+                let descriptor = FetchDescriptor<WorkoutTemplate>()
+                templateCount = (try? modelContext.fetch(descriptor).count) ?? 0
+            }
             // Ad-hoc workout name alert
             .alert("Quick Start", isPresented: $showingAdHocAlert) {
                 TextField("Workout Name", text: $adHocWorkoutName)
@@ -185,7 +215,8 @@ struct ContentView: View {
 
     // MARK: - User Bootstrap
     //
-    // Ensures a User exists in the store. On first launch, creates one.
+    // Ensures a User exists in the store. On first launch, creates one
+    // and seeds the exercise catalog and example templates.
     // On subsequent launches, fetches the existing user.
 
     private func bootstrapUser() {
@@ -197,16 +228,111 @@ struct ContentView: View {
             } else {
                 let newUser = User(name: "Athlete")
                 modelContext.insert(newUser)
+                seedExerciseCatalog()
+                seedExampleTemplates(owner: newUser)
                 try modelContext.save()
                 user = newUser
+                showingOnboarding = true
             }
         } catch {
             print("[ContentView] Failed to bootstrap user: \(error)")
-            // Create in-memory fallback so the app doesn't hang on the spinner.
             let fallback = User(name: "Athlete")
             modelContext.insert(fallback)
             user = fallback
         }
+    }
+
+    // MARK: - Data Seeding
+
+    private func seedExerciseCatalog() {
+        let exercises: [(String, String, String)] = [
+            // Chest
+            ("Push-ups", "Chest", "Bodyweight"),
+            ("Bench Press", "Chest", "Barbell"),
+            ("Dumbbell Flyes", "Chest", "Dumbbell"),
+            ("Incline Bench Press", "Chest", "Barbell"),
+            ("Cable Crossovers", "Chest", "Cable"),
+            // Back
+            ("Pull-ups", "Back", "Bodyweight"),
+            ("Barbell Rows", "Back", "Barbell"),
+            ("Lat Pulldown", "Back", "Cable"),
+            ("Seated Cable Row", "Back", "Cable"),
+            ("Deadlift", "Back", "Barbell"),
+            // Legs
+            ("Squats", "Legs", "Barbell"),
+            ("Lunges", "Legs", "Bodyweight"),
+            ("Leg Press", "Legs", "Machine"),
+            ("Romanian Deadlift", "Legs", "Barbell"),
+            ("Calf Raises", "Legs", "Machine"),
+            // Shoulders
+            ("Overhead Press", "Shoulders", "Barbell"),
+            ("Lateral Raises", "Shoulders", "Dumbbell"),
+            ("Face Pulls", "Shoulders", "Cable"),
+            ("Arnold Press", "Shoulders", "Dumbbell"),
+            // Arms
+            ("Bicep Curls", "Arms", "Dumbbell"),
+            ("Tricep Pushdowns", "Arms", "Cable"),
+            ("Hammer Curls", "Arms", "Dumbbell"),
+            ("Skull Crushers", "Arms", "Barbell"),
+            // Core
+            ("Plank", "Core", "Bodyweight"),
+            ("Crunches", "Core", "Bodyweight"),
+            ("Hanging Leg Raises", "Core", "Bodyweight"),
+        ]
+
+        for (name, muscleGroup, equipment) in exercises {
+            let def = ExerciseDefinition(name: name, muscleGroup: muscleGroup, equipment: equipment)
+            modelContext.insert(def)
+        }
+    }
+
+    private func seedExampleTemplates(owner: User) {
+        // Helper to find a seeded exercise definition by name.
+        func findDef(_ name: String) -> ExerciseDefinition? {
+            let descriptor = FetchDescriptor<ExerciseDefinition>(
+                predicate: #Predicate { $0.name == name }
+            )
+            return try? modelContext.fetch(descriptor).first
+        }
+
+        // Helper to create a template exercise with set goals.
+        func makeExercise(name: String, order: Int, sets: Int, reps: Int, template: WorkoutTemplate) {
+            let def = findDef(name)
+            let exercise = ExerciseTemplate(name: name, order: order, workoutTemplate: template)
+            exercise.exerciseDefinition = def
+            modelContext.insert(exercise)
+
+            for i in 0..<sets {
+                let goal = SetGoal(order: i, targetReps: reps, exerciseTemplate: exercise)
+                modelContext.insert(goal)
+            }
+        }
+
+        // Chest Day
+        let chestDay = WorkoutTemplate(name: "Chest Day", owner: owner)
+        modelContext.insert(chestDay)
+        makeExercise(name: "Push-ups", order: 0, sets: 3, reps: 15, template: chestDay)
+        makeExercise(name: "Bench Press", order: 1, sets: 4, reps: 10, template: chestDay)
+        makeExercise(name: "Dumbbell Flyes", order: 2, sets: 3, reps: 12, template: chestDay)
+        makeExercise(name: "Incline Bench Press", order: 3, sets: 3, reps: 10, template: chestDay)
+
+        // Leg Day
+        let legDay = WorkoutTemplate(name: "Leg Day", owner: owner)
+        modelContext.insert(legDay)
+        makeExercise(name: "Squats", order: 0, sets: 4, reps: 8, template: legDay)
+        makeExercise(name: "Lunges", order: 1, sets: 3, reps: 12, template: legDay)
+        makeExercise(name: "Leg Press", order: 2, sets: 3, reps: 10, template: legDay)
+        makeExercise(name: "Romanian Deadlift", order: 3, sets: 3, reps: 10, template: legDay)
+        makeExercise(name: "Calf Raises", order: 4, sets: 4, reps: 15, template: legDay)
+
+        // Pull Day
+        let pullDay = WorkoutTemplate(name: "Pull Day", owner: owner)
+        modelContext.insert(pullDay)
+        makeExercise(name: "Pull-ups", order: 0, sets: 3, reps: 8, template: pullDay)
+        makeExercise(name: "Barbell Rows", order: 1, sets: 4, reps: 10, template: pullDay)
+        makeExercise(name: "Lat Pulldown", order: 2, sets: 3, reps: 12, template: pullDay)
+        makeExercise(name: "Bicep Curls", order: 3, sets: 3, reps: 12, template: pullDay)
+        makeExercise(name: "Hammer Curls", order: 4, sets: 3, reps: 10, template: pullDay)
     }
 }
 

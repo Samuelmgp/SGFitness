@@ -5,8 +5,6 @@ import Observation
 // MARK: - TemplateEditorViewModel
 // Full editing of a single template — name, notes, exercises, set goals, ordering.
 // Used for both new and existing templates.
-//
-// Stub — method bodies will be implemented in a future task.
 
 @Observable
 final class TemplateEditorViewModel {
@@ -20,6 +18,9 @@ final class TemplateEditorViewModel {
     var name: String
     var notes: String
 
+    /// Tracks whether exercises have been modified since last save.
+    @ObservationIgnored private var exercisesModified: Bool = false
+
     /// Exercises sorted by order.
     var exercises: [ExerciseTemplate] {
         template.exercises.sorted { $0.order < $1.order }
@@ -27,7 +28,7 @@ final class TemplateEditorViewModel {
 
     /// Whether buffered values differ from the persisted model.
     var hasUnsavedChanges: Bool {
-        name != template.name || notes != template.notes
+        name != template.name || notes != template.notes || exercisesModified
     }
 
     init(modelContext: ModelContext, template: WorkoutTemplate) {
@@ -38,26 +39,105 @@ final class TemplateEditorViewModel {
     }
 
     func addExercise(from definition: ExerciseDefinition, targetSets: Int, targetReps: Int, targetWeight: Double?) {
-        // TODO: Create ExerciseTemplate + SetGoal children
+        let nextOrder = exercises.last.map { $0.order + 1 } ?? 0
+
+        let exercise = ExerciseTemplate(
+            name: definition.name,
+            order: nextOrder,
+            workoutTemplate: template
+        )
+        exercise.exerciseDefinition = definition
+        modelContext.insert(exercise)
+
+        for i in 0..<targetSets {
+            let goal = SetGoal(order: i, targetReps: targetReps, targetWeight: targetWeight, exerciseTemplate: exercise)
+            modelContext.insert(goal)
+        }
+
+        exercisesModified = true
+        persistChanges()
     }
 
     func removeExercise(at index: Int) {
-        // TODO: Delete exercise and recompute order
+        let sorted = exercises
+        guard sorted.indices.contains(index) else { return }
+
+        let target = sorted[index]
+        let remaining = sorted.filter { $0.id != target.id }
+
+        modelContext.delete(target)
+
+        for (newOrder, exercise) in remaining.enumerated() {
+            exercise.order = newOrder
+        }
+
+        exercisesModified = true
+        persistChanges()
     }
 
     func reorderExercise(from source: Int, to destination: Int) {
-        // TODO: Update order on affected rows
+        guard source != destination else { return }
+
+        var sorted = exercises
+        guard sorted.indices.contains(source) else { return }
+
+        let clamped = min(destination, sorted.count - 1)
+        let moving = sorted.remove(at: source)
+        sorted.insert(moving, at: clamped)
+
+        for (newOrder, exercise) in sorted.enumerated() {
+            exercise.order = newOrder
+        }
+
+        exercisesModified = true
     }
 
     func addSetGoal(to exercise: ExerciseTemplate, reps: Int, weight: Double?) {
-        // TODO: Append a SetGoal to the exercise
+        let nextOrder = exercise.setGoals
+            .map(\.order)
+            .max()
+            .map { $0 + 1 } ?? 0
+
+        let goal = SetGoal(order: nextOrder, targetReps: reps, targetWeight: weight, exerciseTemplate: exercise)
+        modelContext.insert(goal)
+
+        exercisesModified = true
+        persistChanges()
     }
 
     func removeSetGoal(_ goal: SetGoal) {
-        // TODO: Delete goal and recompute order
+        guard let exercise = goal.exerciseTemplate else {
+            modelContext.delete(goal)
+            return
+        }
+
+        let remaining = exercise.setGoals
+            .filter { $0.id != goal.id }
+            .sorted { $0.order < $1.order }
+
+        modelContext.delete(goal)
+
+        for (newOrder, survivingGoal) in remaining.enumerated() {
+            survivingGoal.order = newOrder
+        }
+
+        exercisesModified = true
+        persistChanges()
     }
 
     func save() {
-        // TODO: Write buffered name/notes to model, set template.updatedAt
+        template.name = name
+        template.notes = notes
+        template.updatedAt = .now
+        exercisesModified = false
+        persistChanges()
+    }
+
+    private func persistChanges() {
+        do {
+            try modelContext.save()
+        } catch {
+            print("[TemplateEditorViewModel] Failed to save: \(error)")
+        }
     }
 }

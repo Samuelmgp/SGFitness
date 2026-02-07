@@ -6,8 +6,6 @@ import Observation
 // Searches and presents the ExerciseDefinition catalog.
 // Used by both TemplateEditorView and ActiveWorkoutView when
 // adding an exercise. Supports creating custom exercises.
-//
-// Stub — method bodies will be implemented in a future task.
 
 @Observable
 final class ExercisePickerViewModel {
@@ -34,13 +32,45 @@ final class ExercisePickerViewModel {
     }
 
     func fetchDefinitions() {
-        // TODO: Query all ExerciseDefinition records, sort alphabetically
+        let descriptor = FetchDescriptor<ExerciseDefinition>(
+            sortBy: [SortDescriptor(\.name, order: .forward)]
+        )
+        definitions = (try? modelContext.fetch(descriptor)) ?? []
+        fetchRecentlyUsed()
     }
 
     func createCustomExercise(name: String) -> ExerciseDefinition {
-        // TODO: Create and insert a new ExerciseDefinition
         let definition = ExerciseDefinition(name: name)
         modelContext.insert(definition)
+        do {
+            try modelContext.save()
+        } catch {
+            print("[ExercisePickerViewModel] Failed to save custom exercise: \(error)")
+        }
+        definitions.append(definition)
+        definitions.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         return definition
+    }
+
+    private func fetchRecentlyUsed() {
+        var descriptor = FetchDescriptor<ExerciseSession>(
+            sortBy: [SortDescriptor(\.workoutSession?.startedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 50
+
+        guard let sessions = try? modelContext.fetch(descriptor) else { return }
+
+        var seen = Set<UUID>()
+        var recent: [ExerciseDefinition] = []
+
+        for session in sessions {
+            guard let def = session.exerciseDefinition else { continue }
+            if seen.insert(def.id).inserted {
+                recent.append(def)
+            }
+            if recent.count >= 5 { break }
+        }
+
+        recentlyUsed = recent
     }
 }

@@ -1,44 +1,38 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - ActiveWorkoutView
-// Target folder: Views/ActiveWorkout/
-//
 // The main screen during a live workout. Displays the session header
 // (name + elapsed time), a scrollable list of exercises with their sets,
-// and a rest timer overlay when active. Toolbar provides finish/discard actions.
-//
-// Binds to: ActiveWorkoutViewModel
+// and a rest timer overlay when active.
 
 struct ActiveWorkoutView: View {
 
-    // @Bindable enables two-way bindings to @Observable properties
-    // (e.g. currentExerciseIndex). The parent view owns the VM via @State.
+    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: ActiveWorkoutViewModel
+    @State private var showingExercisePicker = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
 
                 // MARK: - Workout Header
-                // Binds to: viewModel.session?.name, viewModel.elapsedTime
                 workoutHeader
 
                 Divider()
 
                 // MARK: - Exercise List
-                // Binds to: viewModel.exercises (sorted by order)
                 if viewModel.exercises.isEmpty {
                     ContentUnavailableView(
                         "No Exercises",
                         systemImage: "dumbbell",
-                        description: Text("Add an exercise to get started.")
+                        description: Text("Tap + to add an exercise.")
                     )
                 } else {
                     exerciseList
                 }
             }
             // MARK: - Rest Timer Overlay
-            // Binds to: viewModel.restTimerIsRunning, viewModel.restTimerRemaining
             .overlay {
                 if viewModel.restTimerIsRunning {
                     RestTimerView(
@@ -53,7 +47,7 @@ struct ActiveWorkoutView: View {
                 // MARK: - Toolbar: Add Exercise
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        // TODO: Present ExercisePickerView sheet
+                        showingExercisePicker = true
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -73,6 +67,13 @@ struct ActiveWorkoutView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingExercisePicker) {
+                let picker = ExercisePickerViewModel(modelContext: modelContext)
+                ExercisePickerView(viewModel: picker, onSelect: { definition in
+                    viewModel.addExercise(from: definition)
+                    showingExercisePicker = false
+                })
+            }
         }
     }
 
@@ -81,11 +82,9 @@ struct ActiveWorkoutView: View {
     private var workoutHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                // Binds to: viewModel.session?.name
                 Text(viewModel.session?.name ?? "Workout")
                     .font(.headline)
 
-                // Binds to: viewModel.exercises.count
                 Text("\(viewModel.exercises.count) exercises")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -93,8 +92,6 @@ struct ActiveWorkoutView: View {
 
             Spacer()
 
-            // Binds to: viewModel.elapsedTime
-            // Formatted as mm:ss
             Text(formatElapsedTime(viewModel.elapsedTime))
                 .font(.title2.monospacedDigit())
                 .foregroundStyle(.secondary)
@@ -103,7 +100,6 @@ struct ActiveWorkoutView: View {
     }
 
     private var exerciseList: some View {
-        // Binds to: viewModel.exercises
         List {
             ForEach(Array(viewModel.exercises.enumerated()), id: \.element.id) { index, exercise in
                 ExerciseRowView(
@@ -144,5 +140,27 @@ struct ActiveWorkoutView: View {
         let minutes = Int(interval) / 60
         let seconds = Int(interval) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+struct ActiveWorkoutView_Previews: PreviewProvider {
+    static var previews: some View {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: User.self, configurations: configuration)
+        let context = container.mainContext
+
+        let mockUser = User(
+            id: UUID(),
+            name: "tester",
+            createdAt: Date(),
+            preferredWeightUnit: .kg
+        )
+
+        context.insert(mockUser)
+
+        let viewModel = ActiveWorkoutViewModel(modelContext: context, user: mockUser)
+
+        return ActiveWorkoutView(viewModel: viewModel)
+            .previewDisplayName("Active Workout (Preview)")
     }
 }
