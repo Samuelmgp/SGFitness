@@ -1,27 +1,24 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - ActiveWorkoutView
-// The main screen during a live workout. Displays the session header
-// (name + elapsed time), a scrollable list of exercises with their sets,
-// and a rest timer overlay when active.
-
 struct ActiveWorkoutView: View {
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: ActiveWorkoutViewModel
     @State private var showingExercisePicker = false
+    @State private var showingFinishConfirm = false
+    @State private var showingDiscardConfirm = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-
-                // MARK: - Workout Header
-                workoutHeader
+                // MARK: - Timer Header
+                timerHeader
 
                 Divider()
 
-                // MARK: - Exercise List
+                // MARK: - Exercise Cards
                 if viewModel.exercises.isEmpty {
                     ContentUnavailableView(
                         "No Exercises",
@@ -29,10 +26,9 @@ struct ActiveWorkoutView: View {
                         description: Text("Tap + to add an exercise.")
                     )
                 } else {
-                    exerciseList
+                    exerciseCardList
                 }
             }
-            // MARK: - Rest Timer Overlay
             .overlay {
                 if viewModel.restTimerIsRunning {
                     RestTimerView(
@@ -41,10 +37,9 @@ struct ActiveWorkoutView: View {
                     )
                 }
             }
-            .navigationTitle(viewModel.session?.name ?? "Workout")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // MARK: - Toolbar: Add Exercise
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingExercisePicker = true
@@ -52,15 +47,15 @@ struct ActiveWorkoutView: View {
                         Image(systemName: "plus")
                     }
                 }
-
-                // MARK: - Toolbar: Finish / Discard
                 ToolbarItem(placement: .cancellationAction) {
                     Menu {
                         Button("Finish Workout", systemImage: "checkmark.circle") {
                             viewModel.finishWorkout()
+                            dismiss()
                         }
                         Button("Discard Workout", systemImage: "trash", role: .destructive) {
                             viewModel.discardWorkout()
+                            dismiss()
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -77,90 +72,54 @@ struct ActiveWorkoutView: View {
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Timer Header
 
-    private var workoutHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(viewModel.session?.name ?? "Workout")
-                    .font(.headline)
-
-                Text("\(viewModel.exercises.count) exercises")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
+    private var timerHeader: some View {
+        VStack(spacing: 4) {
             Text(formatElapsedTime(viewModel.elapsedTime))
-                .font(.title2.monospacedDigit())
+                .font(.system(size: 48, weight: .bold, design: .rounded).monospacedDigit())
+                .foregroundStyle(.primary)
+
+            Text(viewModel.session?.name ?? "Workout")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
-        .padding()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
     }
 
-    private var exerciseList: some View {
-        List {
-            ForEach(Array(viewModel.exercises.enumerated()), id: \.element.id) { index, exercise in
-                ExerciseRowView(
-                    exercise: exercise,
-                    exerciseIndex: index,
-                    isCurrent: index == viewModel.currentExerciseIndex,
-                    onLogSet: { reps, weight in
-                        viewModel.logSet(exerciseIndex: index, reps: reps, weight: weight)
-                    },
-                    onCompleteSet: { set, reps, weight in
-                        viewModel.completeSet(set, reps: reps, weight: weight)
-                    },
-                    onSetEffort: { effort in
-                        viewModel.setEffort(exerciseIndex: index, effort: effort)
-                    }
-                )
-                .onTapGesture {
-                    viewModel.currentExerciseIndex = index
+    // MARK: - Exercise Card List
+
+    private var exerciseCardList: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(Array(viewModel.exercises.enumerated()), id: \.element.id) { index, exercise in
+                    ExerciseCardView(
+                        exercise: exercise,
+                        exerciseIndex: index,
+                        onCompleteSet: { set, reps, weight in
+                            viewModel.completeSet(set, reps: reps, weight: weight)
+                        },
+                        onLogSet: { reps, weight in
+                            viewModel.logSet(exerciseIndex: index, reps: reps, weight: weight)
+                        }
+                    )
                 }
             }
-            .onDelete { offsets in
-                for index in offsets {
-                    viewModel.removeExercise(at: index)
-                }
-            }
-            .onMove { source, destination in
-                if let sourceIndex = source.first {
-                    viewModel.reorderExercise(from: sourceIndex, to: destination)
-                }
-            }
+            .padding()
         }
-        .listStyle(.plain)
     }
 
     // MARK: - Helpers
 
     private func formatElapsedTime(_ interval: TimeInterval) -> String {
-        let minutes = Int(interval) / 60
-        let seconds = Int(interval) % 60
+        let totalSeconds = Int(interval)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
         return String(format: "%02d:%02d", minutes, seconds)
-    }
-}
-
-struct ActiveWorkoutView_Previews: PreviewProvider {
-    static var previews: some View {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: User.self, configurations: configuration)
-        let context = container.mainContext
-
-        let mockUser = User(
-            id: UUID(),
-            name: "tester",
-            createdAt: Date(),
-            preferredWeightUnit: .kg
-        )
-
-        context.insert(mockUser)
-
-        let viewModel = ActiveWorkoutViewModel(modelContext: context, user: mockUser)
-
-        return ActiveWorkoutView(viewModel: viewModel)
-            .previewDisplayName("Active Workout (Preview)")
     }
 }

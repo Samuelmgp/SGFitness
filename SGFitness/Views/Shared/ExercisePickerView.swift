@@ -1,14 +1,9 @@
 import SwiftUI
 
 // MARK: - ExercisePickerView
-// Target folder: Views/Shared/
-//
 // Presented as a sheet from ActiveWorkoutView or TemplateEditorView.
 // Shows a searchable list of exercises from the ExerciseDefinition catalog.
-// Displays recently used exercises at the top for quick access.
-// Supports creating a custom exercise if no match is found.
-//
-// Binds to: ExercisePickerViewModel
+// Supports creating custom exercises with full details.
 
 struct ExercisePickerView: View {
 
@@ -17,18 +12,21 @@ struct ExercisePickerView: View {
     /// Callback when the user selects an exercise.
     let onSelect: (ExerciseDefinition) -> Void
 
-    /// Dismiss action (provided by the sheet presentation).
     @Environment(\.dismiss) private var dismiss
 
-    /// Controls the custom exercise creation alert.
-    @State private var showingCreateAlert = false
-    @State private var customExerciseName = ""
+    // Create exercise state
+    @State private var showingCreateSheet = false
+    @State private var newExerciseName = ""
+    @State private var newExerciseMuscleGroup = "Chest"
+    @State private var newExerciseEquipment = "Barbell"
+
+    private let muscleGroups = ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core"]
+    private let equipmentTypes = ["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight"]
 
     var body: some View {
         NavigationStack {
             List {
                 // MARK: - Recently Used Section
-                // Binds to: viewModel.recentlyUsed
                 if !viewModel.recentlyUsed.isEmpty && viewModel.searchText.isEmpty {
                     Section("Recently Used") {
                         ForEach(viewModel.recentlyUsed, id: \.id) { definition in
@@ -38,13 +36,11 @@ struct ExercisePickerView: View {
                 }
 
                 // MARK: - All Exercises Section
-                // Binds to: viewModel.filteredDefinitions
                 Section(viewModel.searchText.isEmpty ? "All Exercises" : "Results") {
                     if viewModel.filteredDefinitions.isEmpty {
-                        // No results — offer to create custom exercise
                         Button {
-                            customExerciseName = viewModel.searchText
-                            showingCreateAlert = true
+                            newExerciseName = viewModel.searchText
+                            showingCreateSheet = true
                         } label: {
                             Label("Create \"\(viewModel.searchText)\"", systemImage: "plus.circle")
                         }
@@ -58,7 +54,6 @@ struct ExercisePickerView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
-            // Binds to: viewModel.searchText
             .searchable(text: $viewModel.searchText, prompt: "Search exercises")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -66,23 +61,73 @@ struct ExercisePickerView: View {
                         dismiss()
                     }
                 }
-            }
-            .alert("Create Exercise", isPresented: $showingCreateAlert) {
-                TextField("Exercise Name", text: $customExerciseName)
-                Button("Cancel", role: .cancel) { }
-                Button("Create") {
-                    guard !customExerciseName.isEmpty else { return }
-                    let definition = viewModel.createCustomExercise(name: customExerciseName)
-                    onSelect(definition)
-                    dismiss()
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        newExerciseName = ""
+                        newExerciseMuscleGroup = "Chest"
+                        newExerciseEquipment = "Barbell"
+                        showingCreateSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
                 }
-            } message: {
-                Text("This exercise will be added to your catalog.")
+            }
+            .sheet(isPresented: $showingCreateSheet) {
+                createExerciseSheet
             }
             .onAppear {
                 viewModel.fetchDefinitions()
             }
         }
+    }
+
+    // MARK: - Create Exercise Sheet
+
+    private var createExerciseSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Exercise Details") {
+                    TextField("Exercise Name", text: $newExerciseName)
+
+                    Picker("Muscle Group", selection: $newExerciseMuscleGroup) {
+                        ForEach(muscleGroups, id: \.self) { group in
+                            Text(group).tag(group)
+                        }
+                    }
+
+                    Picker("Equipment", selection: $newExerciseEquipment) {
+                        ForEach(equipmentTypes, id: \.self) { equipment in
+                            Text(equipment).tag(equipment)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Create Exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showingCreateSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        let trimmed = newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        let definition = viewModel.createCustomExercise(
+                            name: trimmed,
+                            muscleGroup: newExerciseMuscleGroup,
+                            equipment: newExerciseEquipment
+                        )
+                        showingCreateSheet = false
+                        onSelect(definition)
+                        dismiss()
+                    }
+                    .disabled(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Row
@@ -93,16 +138,13 @@ struct ExercisePickerView: View {
             dismiss()
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                // Binds to: definition.name
                 Text(definition.name)
                     .font(.body)
 
                 HStack(spacing: 8) {
-                    // Binds to: definition.muscleGroup
                     if let muscleGroup = definition.muscleGroup {
                         Text(muscleGroup)
                     }
-                    // Binds to: definition.equipment
                     if let equipment = definition.equipment {
                         Text(equipment)
                     }

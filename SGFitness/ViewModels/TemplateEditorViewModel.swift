@@ -21,10 +21,8 @@ final class TemplateEditorViewModel {
     /// Tracks whether exercises have been modified since last save.
     @ObservationIgnored private var exercisesModified: Bool = false
 
-    /// Exercises sorted by order.
-    var exercises: [ExerciseTemplate] {
-        template.exercises.sorted { $0.order < $1.order }
-    }
+    /// Exercises sorted by order. Stored directly so @Observable triggers view updates.
+    private(set) var exercises: [ExerciseTemplate] = []
 
     /// Whether buffered values differ from the persisted model.
     var hasUnsavedChanges: Bool {
@@ -36,14 +34,16 @@ final class TemplateEditorViewModel {
         self.template = template
         self.name = template.name
         self.notes = template.notes
+        self.exercises = template.exercises.sorted { $0.order < $1.order }
     }
 
-    func addExercise(from definition: ExerciseDefinition, targetSets: Int, targetReps: Int, targetWeight: Double?) {
+    func addExercise(from definition: ExerciseDefinition, targetSets: Int, targetReps: Int, targetWeight: Double?, restSeconds: Int? = 60) {
         let nextOrder = exercises.last.map { $0.order + 1 } ?? 0
 
         let exercise = ExerciseTemplate(
             name: definition.name,
             order: nextOrder,
+            restSeconds: restSeconds,
             workoutTemplate: template
         )
         exercise.exerciseDefinition = definition
@@ -54,20 +54,18 @@ final class TemplateEditorViewModel {
             modelContext.insert(goal)
         }
 
+        exercises.append(exercise)
         exercisesModified = true
         persistChanges()
     }
 
     func removeExercise(at index: Int) {
-        let sorted = exercises
-        guard sorted.indices.contains(index) else { return }
+        guard exercises.indices.contains(index) else { return }
 
-        let target = sorted[index]
-        let remaining = sorted.filter { $0.id != target.id }
-
+        let target = exercises.remove(at: index)
         modelContext.delete(target)
 
-        for (newOrder, exercise) in remaining.enumerated() {
+        for (newOrder, exercise) in exercises.enumerated() {
             exercise.order = newOrder
         }
 
@@ -77,15 +75,13 @@ final class TemplateEditorViewModel {
 
     func reorderExercise(from source: Int, to destination: Int) {
         guard source != destination else { return }
+        guard exercises.indices.contains(source) else { return }
 
-        var sorted = exercises
-        guard sorted.indices.contains(source) else { return }
+        let clamped = min(destination, exercises.count - 1)
+        let moving = exercises.remove(at: source)
+        exercises.insert(moving, at: clamped)
 
-        let clamped = min(destination, sorted.count - 1)
-        let moving = sorted.remove(at: source)
-        sorted.insert(moving, at: clamped)
-
-        for (newOrder, exercise) in sorted.enumerated() {
+        for (newOrder, exercise) in exercises.enumerated() {
             exercise.order = newOrder
         }
 
@@ -123,6 +119,10 @@ final class TemplateEditorViewModel {
 
         exercisesModified = true
         persistChanges()
+    }
+
+    func refreshExercises() {
+        exercises = template.exercises.sorted { $0.order < $1.order }
     }
 
     func save() {

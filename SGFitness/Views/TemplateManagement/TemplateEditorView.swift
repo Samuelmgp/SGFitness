@@ -1,44 +1,41 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - TemplateEditorView
-// Full editor for a single workout template. Provides fields for name
-// and notes, a reorderable exercise list with set goals, and buttons
-// to add/remove exercises and set goals.
-
 struct TemplateEditorView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: TemplateEditorViewModel
     @State private var showingExercisePicker = false
 
-    // Add set goal sheet state
+    // Pending exercise definition selected from picker — triggers navigation to config.
+    @State private var pendingExerciseDefinition: ExerciseDefinition?
+    @State private var showingExerciseConfig = false
+
+    // Add set goal alert state
     @State private var showingAddSetSheet = false
     @State private var addSetTargetExercise: ExerciseTemplate?
     @State private var addSetReps: String = "10"
     @State private var addSetWeight: String = ""
 
-    // Edit set goal sheet state
+    // Edit set goal alert state
     @State private var showingEditSetSheet = false
     @State private var editingSetGoal: SetGoal?
     @State private var editSetReps: String = ""
     @State private var editSetWeight: String = ""
 
-    // Rest time configuration
+    // Rest time configuration alert
     @State private var showingRestTimeSheet = false
     @State private var restTimeExercise: ExerciseTemplate?
     @State private var restTimeValue: String = "60"
 
     var body: some View {
         Form {
-            // MARK: - Template Info Section
             Section("Template Info") {
                 TextField("Name", text: $viewModel.name)
                 TextField("Notes", text: $viewModel.notes, axis: .vertical)
                     .lineLimit(3...6)
             }
 
-            // MARK: - Exercises Section
             Section("Exercises") {
                 if viewModel.exercises.isEmpty {
                     HStack {
@@ -56,7 +53,9 @@ struct TemplateEditorView: View {
                     .padding(.vertical, 8)
                 } else {
                     ForEach(viewModel.exercises, id: \.id) { exercise in
-                        exerciseRow(exercise)
+                        NavigationLink(value: exercise) {
+                            exerciseRow(exercise)
+                        }
                     }
                     .onDelete { offsets in
                         for index in offsets {
@@ -79,6 +78,9 @@ struct TemplateEditorView: View {
         }
         .navigationTitle("Edit Template")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: ExerciseTemplate.self) { exercise in
+            ExerciseDetailView(exercise: exercise, viewModel: viewModel)
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Save") {
@@ -91,12 +93,24 @@ struct TemplateEditorView: View {
                 EditButton()
             }
         }
-        .sheet(isPresented: $showingExercisePicker) {
+        .sheet(isPresented: $showingExercisePicker, onDismiss: {
+            if pendingExerciseDefinition != nil {
+                showingExerciseConfig = true
+            }
+        }) {
             let picker = ExercisePickerViewModel(modelContext: modelContext)
             ExercisePickerView(viewModel: picker, onSelect: { exercise in
-                viewModel.addExercise(from: exercise, targetSets: 3, targetReps: 10, targetWeight: nil)
+                pendingExerciseDefinition = exercise
                 showingExercisePicker = false
             })
+        }
+        .navigationDestination(isPresented: $showingExerciseConfig) {
+            if let definition = pendingExerciseDefinition {
+                ExerciseConfigView(definition: definition) { sets, reps, weight, restSeconds in
+                    viewModel.addExercise(from: definition, targetSets: sets, targetReps: reps, targetWeight: weight, restSeconds: restSeconds)
+                    pendingExerciseDefinition = nil
+                }
+            }
         }
         // Add set goal alert
         .alert("Add Set Goal", isPresented: $showingAddSetSheet) {
@@ -155,7 +169,6 @@ struct TemplateEditorView: View {
 
     private func exerciseRow(_ exercise: ExerciseTemplate) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Exercise header with muscle group icon
             HStack {
                 Image(systemName: iconForMuscleGroup(exercise.exerciseDefinition?.muscleGroup))
                     .foregroundStyle(.tint)
@@ -166,7 +179,6 @@ struct TemplateEditorView: View {
 
                 Spacer()
 
-                // Equipment badge
                 if let equipment = exercise.exerciseDefinition?.equipment {
                     Text(equipment)
                         .font(.caption2)
@@ -177,85 +189,12 @@ struct TemplateEditorView: View {
                 }
             }
 
-            // Rest time
-            Button {
-                restTimeExercise = exercise
-                restTimeValue = exercise.restSeconds.map { "\($0)" } ?? "60"
-                showingRestTimeSheet = true
-            } label: {
-                if let rest = exercise.restSeconds {
-                    Label("Rest: \(rest)s", systemImage: "timer")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Label("Set rest time", systemImage: "timer")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.borderless)
-
-            // Set Goals
-            let sortedGoals = exercise.setGoals.sorted { $0.order < $1.order }
-
-            if !sortedGoals.isEmpty {
-                HStack {
-                    Text("Set")
-                        .frame(width: 36, alignment: .leading)
-                    Text("Reps")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Text("Weight")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Spacer().frame(width: 30)
-                }
+            // Summary line
+            let goalCount = exercise.setGoals.count
+            let restText = exercise.restSeconds.map { "\($0)s rest" } ?? "No rest"
+            Text("\(goalCount) sets \u{2022} \(restText)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            }
-
-            ForEach(sortedGoals, id: \.id) { goal in
-                HStack {
-                    Text("\(goal.order + 1)")
-                        .frame(width: 36, alignment: .leading)
-
-                    Text("\(goal.targetReps) reps")
-                        .frame(maxWidth: .infinity, alignment: .center)
-
-                    Text(goal.targetWeight.map { "\(Int($0)) kg" } ?? "BW")
-                        .frame(maxWidth: .infinity, alignment: .center)
-
-                    // Delete set goal button
-                    Button {
-                        viewModel.removeSetGoal(goal)
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .foregroundStyle(.red)
-                            .imageScale(.small)
-                    }
-                    .buttonStyle(.borderless)
-                    .frame(width: 30)
-                }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    editingSetGoal = goal
-                    editSetReps = "\(goal.targetReps)"
-                    editSetWeight = goal.targetWeight.map { "\(Int($0))" } ?? ""
-                    showingEditSetSheet = true
-                }
-            }
-
-            // Add Set Goal button
-            Button {
-                addSetTargetExercise = exercise
-                addSetReps = sortedGoals.last.map { "\($0.targetReps)" } ?? "10"
-                addSetWeight = sortedGoals.last?.targetWeight.map { "\(Int($0))" } ?? ""
-                showingAddSetSheet = true
-            } label: {
-                Label("Add Set", systemImage: "plus")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
         }
         .padding(.vertical, 4)
     }

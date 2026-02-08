@@ -1,16 +1,12 @@
 import SwiftUI
-
-// MARK: - TemplateListView
-// Lists all workout templates with search, swipe-to-delete, and a button
-// to create new templates. Tapping a row navigates to TemplateEditorView.
+import SwiftData
 
 struct TemplateListView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Bindable var viewModel: TemplateListViewModel
 
-    @State private var showingNewTemplateAlert = false
-    @State private var newTemplateName = ""
+    @State private var showingNewTemplate = false
 
     var body: some View {
         NavigationStack {
@@ -28,23 +24,18 @@ struct TemplateListView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        newTemplateName = ""
-                        showingNewTemplateAlert = true
+                        showingNewTemplate = true
                     } label: {
                         Image(systemName: "plus")
                     }
                 }
             }
-            .alert("New Template", isPresented: $showingNewTemplateAlert) {
-                TextField("Template Name", text: $newTemplateName)
-                Button("Cancel", role: .cancel) { }
-                Button("Create") {
-                    guard !newTemplateName.isEmpty else { return }
-                    _ = viewModel.createTemplate(name: newTemplateName)
-                    viewModel.fetchTemplates()
+            .sheet(isPresented: $showingNewTemplate) {
+                NavigationStack {
+                    NewTemplateView(user: viewModel.user) { template in
+                        viewModel.fetchTemplates()
+                    }
                 }
-            } message: {
-                Text("Enter a name for the new workout template.")
             }
             .onAppear {
                 viewModel.fetchTemplates()
@@ -73,8 +64,7 @@ struct TemplateListView: View {
                     .padding(.horizontal, 32)
 
                 Button {
-                    newTemplateName = ""
-                    showingNewTemplateAlert = true
+                    showingNewTemplate = true
                 } label: {
                     Label("Create Your Own", systemImage: "plus.circle.fill")
                         .font(.headline)
@@ -122,7 +112,7 @@ struct TemplateListView: View {
 
             HStack(spacing: 12) {
                 Label("\(template.exercises.count) exercises", systemImage: "dumbbell")
-                Text("Updated \(template.updatedAt, style: .relative) ago")
+                Text(template.updatedAt, format: .dateTime.month(.abbreviated).day())
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)

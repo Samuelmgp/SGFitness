@@ -22,18 +22,15 @@ struct ContentView: View {
     @State private var activeWorkoutVM: ActiveWorkoutViewModel?
     @State private var showingActiveWorkout = false
 
-    // Ad-hoc workout name entry.
-    @State private var showingAdHocAlert = false
-    @State private var adHocWorkoutName = ""
-
-    // Template picker for "Start from Template".
-    @State private var showingTemplatePicker = false
-
     // Onboarding sheet shown on first launch.
     @State private var showingOnboarding = false
 
-    // Template count for workout tab hints.
-    @State private var templateCount = 0
+    // Selected tab for programmatic navigation.
+    @State private var selectedTab = 0
+
+    // Stable ViewModel references — created once in bootstrapUser().
+    @State private var templateListVM: TemplateListViewModel?
+    @State private var workoutHistoryVM: WorkoutHistoryViewModel?
 
     var body: some View {
         Group {
@@ -51,31 +48,43 @@ struct ContentView: View {
     // MARK: - Main Tab View
 
     private func mainTabView(user: User) -> some View {
-        TabView {
-            // Tab 1: Start Workout
-            workoutTab(user: user)
-                .tabItem {
-                    Label("Workout", systemImage: "figure.strengthtraining.traditional")
+        TabView(selection: $selectedTab) {
+            // Tab 0: Home
+            HomeView(
+                user: user,
+                onStartFromTemplate: { template in
+                    startFromTemplate(template, user: user)
+                },
+                onStartAdHoc: {
+                    startAdHoc(user: user)
                 }
-
-            // Tab 2: Templates
-            TemplateListView(
-                viewModel: TemplateListViewModel(modelContext: modelContext, user: user)
             )
+            .tag(0)
             .tabItem {
-                Label("Templates", systemImage: "list.clipboard")
+                Label("Home", systemImage: "house.fill")
             }
 
-            // Tab 3: History
-            WorkoutHistoryView(
-                viewModel: WorkoutHistoryViewModel(modelContext: modelContext)
-            )
-            .tabItem {
-                Label("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+            // Tab 1: Templates
+            if let templateListVM {
+                TemplateListView(viewModel: templateListVM)
+                    .tag(1)
+                    .tabItem {
+                        Label("Templates", systemImage: "list.clipboard")
+                    }
             }
 
-            // Tab 4: Profile
+            // Tab 2: History
+            if let workoutHistoryVM {
+                WorkoutHistoryView(viewModel: workoutHistoryVM)
+                    .tag(2)
+                    .tabItem {
+                        Label("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                    }
+            }
+
+            // Tab 3: Profile
             ProfileView(user: user)
+                .tag(3)
                 .tabItem {
                     Label("Profile", systemImage: "person.circle")
                 }
@@ -95,108 +104,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Workout Tab (Start Screen)
-
-    private func workoutTab(user: User) -> some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
-
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.tint)
-
-                Text("Ready to train, \(user.name)?")
-                    .font(.title2.bold())
-
-                Text("Start a workout from a template or create one on the fly.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-
-                VStack(spacing: 12) {
-                    // Start from template
-                    Button {
-                        showingTemplatePicker = true
-                    } label: {
-                        VStack(spacing: 4) {
-                            Label("Start from Template", systemImage: "list.clipboard")
-                            if templateCount == 0 {
-                                Text("Create a template first in the Templates tab")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-
-                    // Quick start (ad-hoc)
-                    Button {
-                        adHocWorkoutName = ""
-                        showingAdHocAlert = true
-                    } label: {
-                        Label("Quick Start", systemImage: "bolt.fill")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                }
-                .padding(.horizontal, 32)
-
-                Spacer()
-                Spacer()
-            }
-            .navigationTitle("SGFitness")
-            .onAppear {
-                let descriptor = FetchDescriptor<WorkoutTemplate>()
-                templateCount = (try? modelContext.fetch(descriptor).count) ?? 0
-            }
-            // Ad-hoc workout name alert
-            .alert("Quick Start", isPresented: $showingAdHocAlert) {
-                TextField("Workout Name", text: $adHocWorkoutName)
-                Button("Cancel", role: .cancel) { }
-                Button("Start") {
-                    let name = adHocWorkoutName.isEmpty ? "Workout" : adHocWorkoutName
-                    startAdHocWorkout(name: name, user: user)
-                }
-            } message: {
-                Text("Give your workout a name.")
-            }
-            // Template picker sheet
-            .sheet(isPresented: $showingTemplatePicker) {
-                templatePickerSheet(user: user)
-            }
-        }
-    }
-
-    // MARK: - Template Picker Sheet
-
-    private func templatePickerSheet(user: User) -> some View {
-        NavigationStack {
-            TemplatePickerList(
-                modelContext: modelContext,
-                onSelect: { template in
-                    showingTemplatePicker = false
-                    startFromTemplate(template, user: user)
-                }
-            )
-            .navigationTitle("Choose Template")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        showingTemplatePicker = false
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: - Workout Lifecycle
 
     private func startFromTemplate(_ template: WorkoutTemplate, user: User) {
@@ -206,12 +113,13 @@ struct ContentView: View {
         showingActiveWorkout = true
     }
 
-    private func startAdHocWorkout(name: String, user: User) {
+    private func startAdHoc(user: User) {
         let vm = ActiveWorkoutViewModel(modelContext: modelContext, user: user)
-        vm.startAdHoc(name: name)
+        vm.startAdHoc(name: "Quick Workout")
         activeWorkoutVM = vm
         showingActiveWorkout = true
     }
+
 
     // MARK: - User Bootstrap
     //
@@ -225,6 +133,7 @@ struct ContentView: View {
             let users = try modelContext.fetch(descriptor)
             if let existing = users.first {
                 user = existing
+                initViewModels(user: existing)
             } else {
                 let newUser = User(name: "Athlete")
                 modelContext.insert(newUser)
@@ -232,6 +141,7 @@ struct ContentView: View {
                 seedExampleTemplates(owner: newUser)
                 try modelContext.save()
                 user = newUser
+                initViewModels(user: newUser)
                 showingOnboarding = true
             }
         } catch {
@@ -239,7 +149,13 @@ struct ContentView: View {
             let fallback = User(name: "Athlete")
             modelContext.insert(fallback)
             user = fallback
+            initViewModels(user: fallback)
         }
+    }
+
+    private func initViewModels(user: User) {
+        templateListVM = TemplateListViewModel(modelContext: modelContext, user: user)
+        workoutHistoryVM = WorkoutHistoryViewModel(modelContext: modelContext)
     }
 
     // MARK: - Data Seeding
@@ -336,55 +252,6 @@ struct ContentView: View {
     }
 }
 
-// MARK: - TemplatePickerList
-//
-// A simple list of templates for the "Start from Template" sheet.
-// Separate from TemplateListView because this is a selection context,
-// not a management context — no create/delete, just pick.
-
-private struct TemplatePickerList: View {
-
-    let modelContext: ModelContext
-    let onSelect: (WorkoutTemplate) -> Void
-
-    @State private var templates: [WorkoutTemplate] = []
-
-    var body: some View {
-        Group {
-            if templates.isEmpty {
-                ContentUnavailableView(
-                    "No Templates",
-                    systemImage: "list.clipboard",
-                    description: Text("Create a template first in the Templates tab.")
-                )
-            } else {
-                List(templates, id: \.id) { template in
-                    Button {
-                        onSelect(template)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(template.name)
-                                .font(.headline)
-                            Text("\(template.exercises.count) exercises")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .tint(.primary)
-                }
-                .listStyle(.plain)
-            }
-        }
-        .onAppear {
-            let descriptor = FetchDescriptor<WorkoutTemplate>(
-                sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
-            )
-            templates = (try? modelContext.fetch(descriptor)) ?? []
-        }
-    }
-}
-
 #Preview {
     ContentView()
         .modelContainer(for: [
@@ -392,5 +259,6 @@ private struct TemplatePickerList: View {
             ExerciseDefinition.self,
             WorkoutTemplate.self, ExerciseTemplate.self, SetGoal.self,
             WorkoutSession.self, ExerciseSession.self, PerformedSet.self,
+            ScheduledWorkout.self,
         ], inMemory: true)
 }

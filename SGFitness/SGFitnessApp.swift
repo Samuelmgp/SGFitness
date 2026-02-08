@@ -19,6 +19,7 @@ struct SGFitnessApp: App {
             WorkoutSession.self,
             ExerciseSession.self,
             PerformedSet.self,
+            ScheduledWorkout.self,
         ])
     }
 }

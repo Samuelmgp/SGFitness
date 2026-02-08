@@ -10,7 +10,7 @@ import Observation
 final class TemplateListViewModel {
 
     private let modelContext: ModelContext
-    private let user: User
+    let user: User
 
     /// All templates, sorted by updatedAt descending.
     private(set) var templates: [WorkoutTemplate] = []

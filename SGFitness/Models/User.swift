@@ -27,6 +27,9 @@ final class User {
     @Relationship(deleteRule: .cascade, inverse: \BadgeAward.user)
     var badgeAwards: [BadgeAward]
 
+    @Relationship(deleteRule: .cascade, inverse: \ScheduledWorkout.user)
+    var scheduledWorkouts: [ScheduledWorkout]
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -40,5 +43,6 @@ final class User {
         self.workoutTemplates = []
         self.workoutSessions = []
         self.badgeAwards = []
+        self.scheduledWorkouts = []
     }
 }

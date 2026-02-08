@@ -57,6 +57,9 @@ final class ActiveWorkoutViewModel {
     /// views read it but never assign it.
     private(set) var session: WorkoutSession?
 
+    /// Optional link to a scheduled workout that triggered this session.
+    private var scheduledWorkout: ScheduledWorkout?
+
     // MARK: - UI-Only State
     //
     // None of these properties are persisted. They exist solely to drive
@@ -156,7 +159,8 @@ final class ActiveWorkoutViewModel {
     /// Editing the template later does NOT change this session's data.
     /// The `session.template` back-reference is informational only (and
     /// nullified if the template is deleted).
-    func startFromTemplate(_ template: WorkoutTemplate) {
+    func startFromTemplate(_ template: WorkoutTemplate, scheduledWorkout: ScheduledWorkout? = nil) {
+        self.scheduledWorkout = scheduledWorkout
         // 1. Create the session shell.
         let session = WorkoutSession(
             name: template.name,
@@ -532,6 +536,10 @@ final class ActiveWorkoutViewModel {
         let now = Date.now
         session.completedAt = now
         session.updatedAt = now
+
+        // Mark the scheduled workout as completed if one exists.
+        scheduledWorkout?.status = .completed
+        scheduledWorkout?.workoutSession = session
 
         // Freeze elapsed time so the UI shows a stable number after the
         // timer stops. Without this, elapsedTime would show whatever value

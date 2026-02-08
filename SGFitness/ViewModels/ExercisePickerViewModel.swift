@@ -39,8 +39,8 @@ final class ExercisePickerViewModel {
         fetchRecentlyUsed()
     }
 
-    func createCustomExercise(name: String) -> ExerciseDefinition {
-        let definition = ExerciseDefinition(name: name)
+    func createCustomExercise(name: String, muscleGroup: String? = nil, equipment: String? = nil) -> ExerciseDefinition {
+        let definition = ExerciseDefinition(name: name, muscleGroup: muscleGroup, equipment: equipment)
         modelContext.insert(definition)
         do {
             try modelContext.save()
