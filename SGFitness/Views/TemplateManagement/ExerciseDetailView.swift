@@ -28,7 +28,7 @@ struct ExerciseDetailView: View {
             Section("Exercise") {
                 LabeledContent("Name", value: exercise.name)
                 if let group = exercise.exerciseDefinition?.muscleGroup {
-                    LabeledContent("Muscle Group", value: group)
+                    LabeledContent("Muscle Group", value: group.rawValue)
                 }
                 if let equipment = exercise.exerciseDefinition?.equipment {
                     LabeledContent("Equipment", value: equipment)

@@ -28,6 +28,11 @@ struct WorkoutDetailView: View {
                 ForEach(viewModel.exercises, id: \.id) { exercise in
                     exerciseSection(exercise)
                 }
+
+                // MARK: - Stretch List
+                if !viewModel.stretches.isEmpty {
+                    stretchesSection
+                }
             }
             .padding()
         }
@@ -126,6 +131,36 @@ struct WorkoutDetailView: View {
                         .foregroundStyle(set.isCompleted ? .green : .red)
                 }
                 .font(.subheadline)
+            }
+
+            Divider()
+        }
+    }
+
+    // MARK: - Stretch Section
+
+    private var stretchesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Stretches", systemImage: "figure.flexibility")
+                    .font(.headline)
+                Spacer()
+                Text("\(viewModel.stretches.count)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(viewModel.stretches, id: \.id) { stretch in
+                HStack {
+                    Text(stretch.name)
+                        .font(.subheadline)
+                    Spacer()
+                    if let dur = stretch.durationSeconds {
+                        Text("\(dur)s")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Divider()

@@ -143,6 +143,12 @@ final class ActiveWorkoutViewModel: Identifiable {
         return session.exercises.sorted { $0.order < $1.order }
     }
 
+    /// Stretches in display order.
+    var stretches: [StretchEntry] {
+        guard let session else { return [] }
+        return session.stretches.sorted { $0.order < $1.order }
+    }
+
     /// Whether the workout has been completed (completedAt is non-nil).
     var isFinished: Bool {
         session?.completedAt != nil
@@ -240,6 +246,18 @@ final class ActiveWorkoutViewModel: Identifiable {
                 )
                 modelContext.insert(performedSet)
             }
+        }
+
+        // Copy stretch goals into pre-populated StretchEntries.
+        let sortedStretchGoals = template.stretches.sorted { $0.order < $1.order }
+        for goal in sortedStretchGoals {
+            let stretchEntry = StretchEntry(
+                name: goal.name,
+                durationSeconds: goal.targetDurationSeconds,
+                order: goal.order,
+                workoutSession: session
+            )
+            modelContext.insert(stretchEntry)
         }
 
         // Copy the template's target duration so the timer ring knows the goal.
@@ -528,6 +546,49 @@ final class ActiveWorkoutViewModel: Identifiable {
         session?.updatedAt = .now
     }
 
+    // MARK: - Stretch Management
+
+    /// Add a new stretch to the session.
+    ///
+    /// Appended at the end — order is set to one past the current maximum.
+    func addStretch(name: String, durationSeconds: Int? = nil) {
+        guard let session else { return }
+        let nextOrder = stretches.last.map { $0.order + 1 } ?? 0
+        let stretch = StretchEntry(
+            name: name,
+            durationSeconds: durationSeconds,
+            order: nextOrder,
+            workoutSession: session
+        )
+        modelContext.insert(stretch)
+        session.updatedAt = .now
+    }
+
+    /// Remove a stretch at the given display index and recompute order on survivors.
+    func removeStretch(at index: Int) {
+        guard let session else { return }
+        let sorted = stretches
+        guard sorted.indices.contains(index) else { return }
+
+        let target = sorted[index]
+        let remaining = sorted.filter { $0.id != target.id }
+
+        modelContext.delete(target)
+
+        for (newOrder, stretch) in remaining.enumerated() {
+            stretch.order = newOrder
+        }
+
+        session.updatedAt = .now
+    }
+
+    /// Update the name and/or hold duration of an existing stretch entry.
+    func updateStretch(_ stretch: StretchEntry, name: String, durationSeconds: Int?) {
+        stretch.name = name
+        stretch.durationSeconds = durationSeconds
+        session?.updatedAt = .now
+    }
+
     // MARK: - Rest Timer
     //
     // The rest timer is purely UI state. It counts down seconds for the user
@@ -700,6 +761,17 @@ final class ActiveWorkoutViewModel: Identifiable {
             }
         }
 
+        // Copy stretch entries to stretch goals so the template preserves the stretch routine.
+        for (i, stretchEntry) in stretches.enumerated() {
+            let stretchGoal = StretchGoal(
+                name: stretchEntry.name,
+                targetDurationSeconds: stretchEntry.durationSeconds,
+                order: i,
+                workoutTemplate: template
+            )
+            modelContext.insert(stretchGoal)
+        }
+
         persistChanges()
     }
 
@@ -736,7 +808,7 @@ final class ActiveWorkoutViewModel: Identifiable {
         guard prBaselines[defId] == nil else { return } // already loaded
 
         // Only strength exercises use weight-based PR tracking.
-        guard definition.exerciseType != "cardio" else { return }
+        guard definition.exerciseType != .cardio else { return }
 
         let completedSessions = definition.exerciseSessions.filter {
             $0.workoutSession?.completedAt != nil

@@ -117,7 +117,7 @@ struct ExercisePickerView: View {
 
                 HStack(spacing: 8) {
                     if let muscleGroup = definition.muscleGroup {
-                        Text(muscleGroup)
+                        Text(muscleGroup.rawValue)
                     }
                     if let equipment = definition.equipment {
                         Text(equipment)

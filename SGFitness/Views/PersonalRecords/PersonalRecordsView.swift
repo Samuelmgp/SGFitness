@@ -11,7 +11,6 @@ struct PersonalRecordsView: View {
     @State private var prResults: [(ExerciseDefinition, ExercisePRs)] = []
     @State private var pickerViewModel: ExercisePickerViewModel?
 
-    private let muscleGroups = ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core"]
 
     var body: some View {
         Group {
@@ -34,10 +33,10 @@ struct PersonalRecordsView: View {
 
     private var recordsList: some View {
         List {
-            ForEach(muscleGroups, id: \.self) { group in
+            ForEach(MuscleGroup.allCases, id: \.self) { group in
                 let groupPRs = prResults.filter { $0.0.muscleGroup == group && hasPR($0.1) }
                 if !groupPRs.isEmpty {
-                    Section(group) {
+                    Section(group.rawValue) {
                         ForEach(groupPRs, id: \.0.id) { definition, prs in
                             if let vm = pickerViewModel {
                                 NavigationLink {
@@ -95,7 +94,7 @@ struct PersonalRecordsView: View {
     }
 
     private func topMetric(definition: ExerciseDefinition, prs: ExercisePRs) -> String {
-        if definition.exerciseType == "cardio" {
+        if definition.exerciseType == .cardio {
             if let (distance, record) = prs.cardioRecords.min(by: { $0.value.bestTimeSeconds < $1.value.bestTimeSeconds }) {
                 return "\(formatDistance(distance)): \(formatDuration(record.bestTimeSeconds))"
             }

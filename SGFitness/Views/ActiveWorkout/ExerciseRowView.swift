@@ -20,7 +20,7 @@ struct ExerciseCardView: View {
     @State private var newSetDuration: String = ""
 
     private var isCardio: Bool {
-        exercise.exerciseDefinition?.exerciseType == "cardio"
+        exercise.exerciseDefinition?.exerciseType == .cardio
     }
 
     private var sortedSets: [PerformedSet] {

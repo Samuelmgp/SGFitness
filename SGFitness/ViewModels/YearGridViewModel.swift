@@ -97,7 +97,7 @@ final class YearGridViewModel {
         let definitions = (try? modelContext.fetch(defDescriptor)) ?? []
 
         for definition in definitions {
-            guard definition.exerciseType != "cardio" else { continue }
+            guard definition.exerciseType != .cardio else { continue }
 
             let completedExerciseSessions = definition.exerciseSessions.filter {
                 $0.workoutSession?.completedAt != nil

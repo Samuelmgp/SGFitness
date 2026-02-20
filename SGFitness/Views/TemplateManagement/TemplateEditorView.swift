@@ -29,6 +29,11 @@ struct TemplateEditorView: View {
     @State private var restTimeExercise: ExerciseTemplate?
     @State private var restTimeValue: String = "60"
 
+    // Add stretch goal alert
+    @State private var showingAddStretchGoal = false
+    @State private var newStretchGoalName: String = ""
+    @State private var newStretchGoalDuration: String = ""
+
     var body: some View {
         Form {
             Section("Template Info") {
@@ -86,6 +91,46 @@ struct TemplateEditorView: View {
                     showingExercisePicker = true
                 } label: {
                     Label("Add Exercise", systemImage: "plus.circle")
+                }
+            }
+
+            Section("Stretches") {
+                if viewModel.stretches.isEmpty {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "figure.flexibility")
+                                .font(.title2)
+                                .foregroundStyle(.secondary)
+                            Text("No stretches yet")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                } else {
+                    ForEach(viewModel.stretches, id: \.id) { stretch in
+                        stretchGoalRow(stretch)
+                    }
+                    .onDelete { offsets in
+                        for index in offsets {
+                            viewModel.removeStretchGoal(at: index)
+                        }
+                    }
+                    .onMove { source, destination in
+                        if let sourceIndex = source.first {
+                            viewModel.reorderStretchGoal(from: sourceIndex, to: destination)
+                        }
+                    }
+                }
+
+                Button {
+                    newStretchGoalName = ""
+                    newStretchGoalDuration = ""
+                    showingAddStretchGoal = true
+                } label: {
+                    Label("Add Stretch", systemImage: "plus.circle")
                 }
             }
         }
@@ -177,6 +222,23 @@ struct TemplateEditorView: View {
         } message: {
             Text("Set rest time between sets (in seconds).")
         }
+        // Add stretch goal alert
+        .alert("Add Stretch", isPresented: $showingAddStretchGoal) {
+            TextField("Stretch name", text: $newStretchGoalName)
+            TextField("Target duration (seconds, optional)", text: $newStretchGoalDuration)
+                .keyboardType(.numberPad)
+            Button("Cancel", role: .cancel) { }
+            Button("Add") {
+                let trimmed = newStretchGoalName.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { return }
+                viewModel.addStretchGoal(
+                    name: trimmed,
+                    targetDurationSeconds: Int(newStretchGoalDuration)
+                )
+            }
+        } message: {
+            Text("Enter stretch name and optional hold duration.")
+        }
     }
 
     // MARK: - Exercise Row
@@ -213,17 +275,29 @@ struct TemplateEditorView: View {
         .padding(.vertical, 4)
     }
 
+    // MARK: - Stretch Goal Row
+
+    private func stretchGoalRow(_ stretch: StretchGoal) -> some View {
+        HStack {
+            Image(systemName: "figure.flexibility")
+                .foregroundStyle(.tint)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(stretch.name)
+                    .font(.subheadline)
+                if let dur = stretch.targetDurationSeconds {
+                    Text("Hold \(dur)s")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
     // MARK: - Helpers
 
-    private func iconForMuscleGroup(_ group: String?) -> String {
-        switch group?.lowercased() {
-        case "chest": return "figure.arms.open"
-        case "back": return "figure.rowing"
-        case "legs": return "figure.walk"
-        case "shoulders": return "figure.boxing"
-        case "arms": return "figure.mixed.cardio"
-        case "core": return "figure.core.training"
-        default: return "dumbbell"
-        }
+    private func iconForMuscleGroup(_ group: MuscleGroup?) -> String {
+        group?.sfSymbol ?? "dumbbell"
     }
 }

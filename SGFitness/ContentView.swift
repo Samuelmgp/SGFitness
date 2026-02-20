@@ -195,39 +195,39 @@ struct ContentView: View {
     // MARK: - Data Seeding
 
     private func seedExerciseCatalog() {
-        let exercises: [(String, String, String)] = [
+        let exercises: [(String, MuscleGroup, String)] = [
             // Chest
-            ("Push-ups", "Chest", "Bodyweight"),
-            ("Bench Press", "Chest", "Barbell"),
-            ("Dumbbell Flyes", "Chest", "Dumbbell"),
-            ("Incline Bench Press", "Chest", "Barbell"),
-            ("Cable Crossovers", "Chest", "Cable"),
+            ("Push-ups", .chest, "Bodyweight"),
+            ("Bench Press", .chest, "Barbell"),
+            ("Dumbbell Flyes", .chest, "Dumbbell"),
+            ("Incline Bench Press", .chest, "Barbell"),
+            ("Cable Crossovers", .chest, "Cable"),
             // Back
-            ("Pull-ups", "Back", "Bodyweight"),
-            ("Barbell Rows", "Back", "Barbell"),
-            ("Lat Pulldown", "Back", "Cable"),
-            ("Seated Cable Row", "Back", "Cable"),
-            ("Deadlift", "Back", "Barbell"),
+            ("Pull-ups", .back, "Bodyweight"),
+            ("Barbell Rows", .back, "Barbell"),
+            ("Lat Pulldown", .back, "Cable"),
+            ("Seated Cable Row", .back, "Cable"),
+            ("Deadlift", .back, "Barbell"),
             // Legs
-            ("Squats", "Legs", "Barbell"),
-            ("Lunges", "Legs", "Bodyweight"),
-            ("Leg Press", "Legs", "Machine"),
-            ("Romanian Deadlift", "Legs", "Barbell"),
-            ("Calf Raises", "Legs", "Machine"),
+            ("Squats", .legs, "Barbell"),
+            ("Lunges", .legs, "Bodyweight"),
+            ("Leg Press", .legs, "Machine"),
+            ("Romanian Deadlift", .legs, "Barbell"),
+            ("Calf Raises", .legs, "Machine"),
             // Shoulders
-            ("Overhead Press", "Shoulders", "Barbell"),
-            ("Lateral Raises", "Shoulders", "Dumbbell"),
-            ("Face Pulls", "Shoulders", "Cable"),
-            ("Arnold Press", "Shoulders", "Dumbbell"),
+            ("Overhead Press", .shoulders, "Barbell"),
+            ("Lateral Raises", .shoulders, "Dumbbell"),
+            ("Face Pulls", .shoulders, "Cable"),
+            ("Arnold Press", .shoulders, "Dumbbell"),
             // Arms
-            ("Bicep Curls", "Arms", "Dumbbell"),
-            ("Tricep Pushdowns", "Arms", "Cable"),
-            ("Hammer Curls", "Arms", "Dumbbell"),
-            ("Skull Crushers", "Arms", "Barbell"),
+            ("Bicep Curls", .arms, "Dumbbell"),
+            ("Tricep Pushdowns", .arms, "Cable"),
+            ("Hammer Curls", .arms, "Dumbbell"),
+            ("Skull Crushers", .arms, "Barbell"),
             // Core
-            ("Plank", "Core", "Bodyweight"),
-            ("Crunches", "Core", "Bodyweight"),
-            ("Hanging Leg Raises", "Core", "Bodyweight"),
+            ("Plank", .core, "Bodyweight"),
+            ("Crunches", .core, "Bodyweight"),
+            ("Hanging Leg Raises", .core, "Bodyweight"),
         ]
 
         for (name, muscleGroup, equipment) in exercises {
@@ -291,8 +291,9 @@ struct ContentView: View {
         .modelContainer(for: [
             User.self, Badge.self, BadgeAward.self,
             ExerciseDefinition.self,
-            WorkoutTemplate.self, ExerciseTemplate.self, SetGoal.self,
-            WorkoutSession.self, ExerciseSession.self, PerformedSet.self,
+            WorkoutTemplate.self, ExerciseTemplate.self, SetGoal.self, StretchGoal.self,
+            WorkoutSession.self, ExerciseSession.self, PerformedSet.self, StretchEntry.self,
+            WorkoutExercise.self, ExerciseSet.self,
             ScheduledWorkout.self,
         ], inMemory: true)
 }

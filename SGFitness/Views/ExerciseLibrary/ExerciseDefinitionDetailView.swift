@@ -21,14 +21,14 @@ struct ExerciseDefinitionDetailView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         if let muscleGroup = definition.muscleGroup {
-                            ExerciseChip(text: muscleGroup, systemImage: "figure.strengthtraining.traditional")
+                            ExerciseChip(text: muscleGroup.rawValue, systemImage: "figure.strengthtraining.traditional")
                         }
                         if let equipment = definition.equipment {
                             ExerciseChip(text: equipment, systemImage: "dumbbell")
                         }
                         ExerciseChip(
-                            text: definition.exerciseType == "cardio" ? "Cardio" : "Strength",
-                            systemImage: definition.exerciseType == "cardio" ? "figure.run" : "bolt.fill"
+                            text: definition.exerciseType.displayName,
+                            systemImage: definition.exerciseType.sfSymbol
                         )
                     }
                     .padding(.vertical, 4)
@@ -39,7 +39,7 @@ struct ExerciseDefinitionDetailView: View {
             // MARK: - Personal Bests
             Section("Personal Bests") {
                 if let prs {
-                    if definition.exerciseType == "cardio" {
+                    if definition.exerciseType == .cardio {
                         if prs.cardioRecords.isEmpty {
                             Text("No records yet")
                                 .foregroundStyle(.secondary)
@@ -168,7 +168,7 @@ struct ExerciseDefinitionDetailView: View {
             .sorted { $0.order < $1.order }
         if completed.isEmpty { return "No sets logged" }
 
-        if definition.exerciseType == "cardio" {
+        if definition.exerciseType == .cardio {
             let parts = completed.map { set -> String in
                 let dist = "\(set.reps)m"
                 if let dur = set.durationSeconds {

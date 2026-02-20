@@ -25,6 +25,9 @@ final class WorkoutTemplate {
     @Relationship(deleteRule: .cascade, inverse: \ExerciseTemplate.workoutTemplate)
     var exercises: [ExerciseTemplate]
 
+    @Relationship(deleteRule: .cascade, inverse: \StretchGoal.workoutTemplate)
+    var stretches: [StretchGoal]
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -42,5 +45,6 @@ final class WorkoutTemplate {
         self.targetDurationMinutes = targetDurationMinutes
         self.owner = owner
         self.exercises = []
+        self.stretches = []
     }
 }

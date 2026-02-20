@@ -19,11 +19,10 @@ struct ExerciseEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
-    @State private var selectedMuscleGroup: String = "Chest"
+    @State private var selectedMuscleGroup: MuscleGroup = .chest
     @State private var selectedEquipment: String = "Barbell"
-    @State private var selectedExerciseType: String = "strength"
+    @State private var selectedExerciseType: ExerciseType = .strength
 
-    private let muscleGroups = ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core"]
     private let equipmentTypes = ["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight"]
 
     private var isEditing: Bool {
@@ -37,19 +36,20 @@ struct ExerciseEditorView: View {
                 TextField("Exercise Name", text: $name)
 
                 Picker("Type", selection: $selectedExerciseType) {
-                    Text("Strength").tag("strength")
-                    Text("Cardio").tag("cardio")
+                    ForEach(ExerciseType.allCases, id: \.self) { type in
+                        Text(type.displayName).tag(type)
+                    }
                 }
 
-                if selectedExerciseType == "strength" {
+                if selectedExerciseType == .strength {
                     Picker("Muscle Group", selection: $selectedMuscleGroup) {
-                        ForEach(muscleGroups, id: \.self) { group in
-                            Text(group).tag(group)
+                        ForEach(MuscleGroup.allCases, id: \.self) { group in
+                            Text(group.rawValue).tag(group)
                         }
                     }
                 }
 
-                if selectedExerciseType == "strength" {
+                if selectedExerciseType == .strength {
                     Picker("Equipment", selection: $selectedEquipment) {
                         ForEach(equipmentTypes, id: \.self) { equipment in
                             Text(equipment).tag(equipment)
@@ -76,7 +76,7 @@ struct ExerciseEditorView: View {
                 }
             case .edit(let definition):
                 name = definition.name
-                selectedMuscleGroup = definition.muscleGroup ?? "Chest"
+                selectedMuscleGroup = definition.muscleGroup ?? .chest
                 selectedEquipment = definition.equipment ?? "Barbell"
                 selectedExerciseType = definition.exerciseType
             }
@@ -87,8 +87,8 @@ struct ExerciseEditorView: View {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let isStrength = selectedExerciseType == "strength"
-        let muscleGroup: String? = isStrength ? selectedMuscleGroup : nil
+        let isStrength = selectedExerciseType == .strength
+        let muscleGroup: MuscleGroup? = isStrength ? selectedMuscleGroup : nil
         let equipment: String? = isStrength ? selectedEquipment : nil
 
         switch mode {

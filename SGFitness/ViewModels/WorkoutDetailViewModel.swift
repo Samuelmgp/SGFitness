@@ -22,6 +22,11 @@ final class WorkoutDetailViewModel {
         session.exercises.sorted { $0.order < $1.order }
     }
 
+    /// Stretches sorted by order.
+    var stretches: [StretchEntry] {
+        session.stretches.sorted { $0.order < $1.order }
+    }
+
     /// Workout duration derived from timestamps.
     var duration: TimeInterval {
         guard let completedAt = session.completedAt else { return 0 }

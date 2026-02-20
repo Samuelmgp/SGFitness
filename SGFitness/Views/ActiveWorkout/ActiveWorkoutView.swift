@@ -14,6 +14,9 @@ struct ActiveWorkoutView: View {
     @State private var prBannerMessage = ""
     @State private var showingManualDuration = false
     @State private var manualDurationInput: String = "45"
+    @State private var showingAddStretch = false
+    @State private var newStretchName: String = ""
+    @State private var newStretchDuration: String = ""
 
     var body: some View {
         NavigationStack {
@@ -23,8 +26,8 @@ struct ActiveWorkoutView: View {
 
                 Divider()
 
-                // MARK: - Exercise Cards
-                if viewModel.exercises.isEmpty {
+                // MARK: - Exercise Cards + Stretches
+                if viewModel.exercises.isEmpty && viewModel.stretches.isEmpty {
                     ContentUnavailableView(
                         "No Exercises",
                         systemImage: "dumbbell",
@@ -115,6 +118,19 @@ struct ActiveWorkoutView: View {
                 }
             } message: {
                 Text("How long was your workout? (minutes)")
+            }
+            .alert("Add Stretch", isPresented: $showingAddStretch) {
+                TextField("Stretch name", text: $newStretchName)
+                TextField("Duration (seconds, optional)", text: $newStretchDuration)
+                    .keyboardType(.numberPad)
+                Button("Cancel", role: .cancel) {}
+                Button("Add") {
+                    let trimmed = newStretchName.trimmingCharacters(in: .whitespaces)
+                    guard !trimmed.isEmpty else { return }
+                    viewModel.addStretch(name: trimmed, durationSeconds: Int(newStretchDuration))
+                }
+            } message: {
+                Text("Enter stretch name and optional hold duration.")
             }
         }
     }
@@ -221,9 +237,70 @@ struct ActiveWorkoutView: View {
                         }
                     )
                 }
+
+                stretchSection
             }
             .padding()
         }
+    }
+
+    // MARK: - Stretch Section
+
+    private var stretchSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Stretches", systemImage: "figure.flexibility")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    newStretchName = ""
+                    newStretchDuration = ""
+                    showingAddStretch = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+
+            if viewModel.stretches.isEmpty {
+                Text("No stretches added")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(Array(viewModel.stretches.enumerated()), id: \.element.id) { index, stretch in
+                    VStack(spacing: 0) {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(stretch.name)
+                                    .font(.subheadline.bold())
+                                if let dur = stretch.durationSeconds {
+                                    Text("\(dur)s hold")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                viewModel.removeStretch(at: index)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.vertical, 6)
+
+                        if index < viewModel.stretches.count - 1 {
+                            Divider()
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(.fill.quaternary)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Helpers

@@ -23,14 +23,14 @@ final class ExerciseDefinition {
     /// Canonical exercise name (e.g. "Barbell Bench Press").
     var name: String
 
-    /// Optional muscle group for future filtering/grouping.
-    var muscleGroup: String?
+    /// Muscle group for filtering and grouping. Nil for cardio exercises.
+    var muscleGroup: MuscleGroup?
 
     /// Optional equipment tag (e.g. "Barbell", "Dumbbell", "Bodyweight").
     var equipment: String?
 
-    /// Exercise type: "strength" (default) or "cardio".
-    var exerciseType: String = "strength"
+    /// Whether this is a strength or cardio exercise.
+    var exerciseType: ExerciseType = ExerciseType.strength
 
     var createdAt: Date
 
@@ -44,12 +44,16 @@ final class ExerciseDefinition {
     @Relationship(deleteRule: .nullify, inverse: \ExerciseSession.exerciseDefinition)
     var exerciseSessions: [ExerciseSession]
 
+    /// All WorkoutExercise instances linked to this definition.
+    @Relationship(deleteRule: .nullify, inverse: \WorkoutExercise.exerciseDefinition)
+    var workoutExercises: [WorkoutExercise]
+
     init(
         id: UUID = UUID(),
         name: String,
-        muscleGroup: String? = nil,
+        muscleGroup: MuscleGroup? = nil,
         equipment: String? = nil,
-        exerciseType: String = "strength",
+        exerciseType: ExerciseType = .strength,
         createdAt: Date = .now
     ) {
         self.id = id
@@ -60,5 +64,6 @@ final class ExerciseDefinition {
         self.createdAt = createdAt
         self.exerciseTemplates = []
         self.exerciseSessions = []
+        self.workoutExercises = []
     }
 }

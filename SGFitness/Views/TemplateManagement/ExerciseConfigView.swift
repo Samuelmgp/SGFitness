@@ -17,7 +17,7 @@ struct ExerciseConfigView: View {
             Section("Exercise") {
                 LabeledContent("Name", value: definition.name)
                 if let group = definition.muscleGroup {
-                    LabeledContent("Muscle Group", value: group)
+                    LabeledContent("Muscle Group", value: group.rawValue)
                 }
                 if let equipment = definition.equipment {
                     LabeledContent("Equipment", value: equipment)

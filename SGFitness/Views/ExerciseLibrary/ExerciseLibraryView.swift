@@ -14,7 +14,6 @@ struct ExerciseLibraryView: View {
     @State private var exerciseToDelete: ExerciseDefinition?
     @State private var showingDeleteConfirmation = false
 
-    private let muscleGroups = ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core"]
 
     var body: some View {
         Group {
@@ -91,10 +90,10 @@ struct ExerciseLibraryView: View {
         let displayedExercises = viewModel.filteredDefinitions
 
         return List {
-            ForEach(muscleGroups, id: \.self) { group in
+            ForEach(MuscleGroup.allCases, id: \.self) { group in
                 let exercises = displayedExercises.filter { $0.muscleGroup == group }
                 if !exercises.isEmpty {
-                    Section(group) {
+                    Section(group.rawValue) {
                         ForEach(exercises, id: \.id) { definition in
                             NavigationLink {
                                 ExerciseDefinitionDetailView(definition: definition, viewModel: viewModel)
@@ -157,7 +156,7 @@ struct ExerciseLibraryView: View {
 
             HStack(spacing: 8) {
                 if let muscleGroup = definition.muscleGroup {
-                    Text(muscleGroup)
+                    Text(muscleGroup.rawValue)
                 }
                 if let equipment = definition.equipment {
                     Text(equipment)

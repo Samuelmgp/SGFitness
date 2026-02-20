@@ -33,6 +33,12 @@ final class WorkoutSession {
     @Relationship(deleteRule: .cascade, inverse: \ExerciseSession.workoutSession)
     var exercises: [ExerciseSession]
 
+    @Relationship(deleteRule: .cascade, inverse: \StretchEntry.workoutSession)
+    var stretches: [StretchEntry]
+
+    @Relationship(deleteRule: .cascade, inverse: \WorkoutExercise.workoutSession)
+    var workoutExercises: [WorkoutExercise]
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -54,5 +60,7 @@ final class WorkoutSession {
         self.user = user
         self.template = template
         self.exercises = []
+        self.stretches = []
+        self.workoutExercises = []
     }
 }

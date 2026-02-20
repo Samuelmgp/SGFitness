@@ -60,7 +60,7 @@ final class PRsViewModel {
             $0.workoutSession?.completedAt != nil
         }
 
-        if definition.exerciseType == "cardio" {
+        if definition.exerciseType == .cardio {
             prs.cardioRecords = computeCardioPRs(from: completedSessions)
         } else {
             computeStrengthPRs(from: completedSessions, into: &prs)
