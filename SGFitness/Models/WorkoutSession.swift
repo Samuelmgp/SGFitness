@@ -20,6 +20,7 @@ final class WorkoutSession {
     var startedAt: Date
     var completedAt: Date?
     var updatedAt: Date
+    var targetDurationMinutes: Int?
 
     // MARK: - Relationships
 
@@ -39,6 +40,7 @@ final class WorkoutSession {
         startedAt: Date = .now,
         completedAt: Date? = nil,
         updatedAt: Date = .now,
+        targetDurationMinutes: Int? = nil,
         user: User? = nil,
         template: WorkoutTemplate? = nil
     ) {
@@ -48,6 +50,7 @@ final class WorkoutSession {
         self.startedAt = startedAt
         self.completedAt = completedAt
         self.updatedAt = updatedAt
+        self.targetDurationMinutes = targetDurationMinutes
         self.user = user
         self.template = template
         self.exercises = []

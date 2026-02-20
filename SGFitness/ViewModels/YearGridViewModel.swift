@@ -13,6 +13,7 @@ final class YearGridViewModel {
 
     var year: Int
     private(set) var cellData: [Date: DayStatus] = [:]
+    private(set) var prDates: Set<Date> = []
 
     init(modelContext: ModelContext, year: Int = Calendar.current.component(.year, from: .now)) {
         self.modelContext = modelContext
@@ -86,6 +87,43 @@ final class YearGridViewModel {
         }
 
         cellData = data
+
+        // MARK: - PR Dates
+        // For each exercise, scan sessions chronologically and detect when a
+        // new running max weight is set. Mark those days in the current year.
+        var prDatesSet = Set<Date>()
+
+        let defDescriptor = FetchDescriptor<ExerciseDefinition>()
+        let definitions = (try? modelContext.fetch(defDescriptor)) ?? []
+
+        for definition in definitions {
+            guard definition.exerciseType != "cardio" else { continue }
+
+            let completedExerciseSessions = definition.exerciseSessions.filter {
+                $0.workoutSession?.completedAt != nil
+            }.sorted {
+                ($0.workoutSession?.completedAt ?? .distantPast) < ($1.workoutSession?.completedAt ?? .distantPast)
+            }
+
+            var runningMaxWeight: Double = 0
+            for exerciseSession in completedExerciseSessions {
+                guard let completedAt = exerciseSession.workoutSession?.completedAt else { continue }
+                let maxWeight = exerciseSession.performedSets
+                    .filter(\.isCompleted)
+                    .compactMap(\.weight)
+                    .max() ?? 0
+
+                if maxWeight > runningMaxWeight {
+                    runningMaxWeight = maxWeight
+                    let day = calendar.startOfDay(for: completedAt)
+                    if calendar.component(.year, from: day) == year {
+                        prDatesSet.insert(day)
+                    }
+                }
+            }
+        }
+
+        prDates = prDatesSet
     }
 
     func navigateYear(by offset: Int) {

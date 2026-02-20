@@ -1,19 +1,27 @@
 import SwiftUI
 
 // MARK: - ExerciseCardView
-// Redesigned exercise display for the active workout.
 // Shows exercises as grouped cards with per-set completion circles.
+// Supports both strength exercises (reps + weight) and cardio (distance + duration).
+// Weight values are always stored/passed in kg; display conversion uses weightUnit.
 
 struct ExerciseCardView: View {
 
     let exercise: ExerciseSession
     let exerciseIndex: Int
-    let onCompleteSet: (_ set: PerformedSet, _ reps: Int, _ weight: Double?) -> Void
-    let onLogSet: (_ reps: Int, _ weight: Double?) -> Void
+    let weightUnit: WeightUnit
+    let onCompleteSet: (_ set: PerformedSet, _ reps: Int, _ weight: Double?, _ durationSeconds: Int?) -> Void
+    /// weight parameter is already in kg (converted by this view before calling)
+    let onLogSet: (_ reps: Int, _ weight: Double?, _ durationSeconds: Int?) -> Void
 
     @State private var showingAddSet = false
     @State private var newSetReps: String = "10"
     @State private var newSetWeight: String = ""
+    @State private var newSetDuration: String = ""
+
+    private var isCardio: Bool {
+        exercise.exerciseDefinition?.exerciseType == "cardio"
+    }
 
     private var sortedSets: [PerformedSet] {
         exercise.performedSets.sorted { $0.order < $1.order }
@@ -29,9 +37,7 @@ struct ExerciseCardView: View {
             HStack {
                 Text(exercise.name)
                     .font(.headline)
-
                 Spacer()
-
                 if allSetsComplete {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
@@ -42,12 +48,14 @@ struct ExerciseCardView: View {
             // MARK: - Set Grid Header
             if !sortedSets.isEmpty {
                 HStack {
-                    Text("SET")
-                        .frame(width: 36, alignment: .leading)
-                    Text("REPS")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Text("WEIGHT")
-                        .frame(maxWidth: .infinity, alignment: .center)
+                    Text("SET").frame(width: 36, alignment: .leading)
+                    if isCardio {
+                        Text("DIST (m)").frame(maxWidth: .infinity, alignment: .center)
+                        Text("TIME").frame(maxWidth: .infinity, alignment: .center)
+                    } else {
+                        Text("REPS").frame(maxWidth: .infinity, alignment: .center)
+                        Text("WT (\(weightUnit.displayName.uppercased()))").frame(maxWidth: .infinity, alignment: .center)
+                    }
                     Spacer().frame(width: 40)
                 }
                 .font(.caption2.bold())
@@ -58,17 +66,26 @@ struct ExerciseCardView: View {
             ForEach(sortedSets, id: \.id) { set in
                 SetCircleRow(
                     set: set,
-                    onComplete: { reps, weight in
-                        onCompleteSet(set, reps, weight)
+                    isCardio: isCardio,
+                    weightUnit: weightUnit,
+                    onComplete: { reps, weight, durationSeconds in
+                        onCompleteSet(set, reps, weight, durationSeconds)
                     }
                 )
             }
 
             // MARK: - Add Set
             Button {
-                let lastSet = sortedSets.last
-                newSetReps = lastSet.map { "\($0.reps)" } ?? "10"
-                newSetWeight = lastSet?.weight.map { "\(Int($0))" } ?? ""
+                if isCardio {
+                    let last = sortedSets.last
+                    newSetReps = last.map { "\($0.reps)" } ?? "800"
+                    newSetDuration = last?.durationSeconds.map { formatDuration($0) } ?? ""
+                } else {
+                    let last = sortedSets.last
+                    newSetReps = last.map { "\($0.reps)" } ?? "10"
+                    // Pre-fill in user's display unit
+                    newSetWeight = last?.weight.map { displayWeight($0) } ?? ""
+                }
                 showingAddSet = true
             } label: {
                 Label("Add Set", systemImage: "plus.circle")
@@ -79,35 +96,67 @@ struct ExerciseCardView: View {
         .padding()
         .background(.fill.quaternary)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .alert("Log Set", isPresented: $showingAddSet) {
-            TextField("Reps", text: $newSetReps)
-                .keyboardType(.numberPad)
-            TextField("Weight (optional)", text: $newSetWeight)
-                .keyboardType(.decimalPad)
-            Button("Cancel", role: .cancel) { }
-            Button("Log") {
-                let reps = Int(newSetReps) ?? 0
-                let weight = Double(newSetWeight)
-                guard reps > 0 else { return }
-                onLogSet(reps, weight)
+        .alert(isCardio ? "Log Cardio Set" : "Log Set", isPresented: $showingAddSet) {
+            if isCardio {
+                TextField("Distance (m)", text: $newSetReps)
+                    .keyboardType(.numberPad)
+                TextField("Duration (mm:ss)", text: $newSetDuration)
+                Button("Cancel", role: .cancel) {}
+                Button("Log") {
+                    let distance = Int(newSetReps) ?? 0
+                    guard let duration = parseDuration(newSetDuration), distance > 0 else { return }
+                    onLogSet(distance, nil, duration)
+                }
+            } else {
+                TextField("Reps", text: $newSetReps)
+                    .keyboardType(.numberPad)
+                TextField("Weight (\(weightUnit.displayName), optional)", text: $newSetWeight)
+                    .keyboardType(.decimalPad)
+                Button("Cancel", role: .cancel) {}
+                Button("Log") {
+                    let reps = Int(newSetReps) ?? 0
+                    guard reps > 0 else { return }
+                    // Convert entered display-unit value → kg for storage
+                    let weightKg = Double(newSetWeight).map { weightUnit.toKilograms($0) }
+                    onLogSet(reps, weightKg, nil)
+                }
             }
         } message: {
-            Text("Enter reps and weight for this set.")
+            Text(isCardio ? "Enter distance and time for this set." : "Enter reps and weight for this set.")
         }
+    }
+
+    // Display a stored-kg value in the user's preferred unit
+    private func displayWeight(_ kg: Double) -> String {
+        let v = weightUnit.fromKilograms(kg)
+        return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : String(format: "%.1f", v)
+    }
+
+    private func formatDuration(_ seconds: Int) -> String {
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private func parseDuration(_ str: String) -> Int? {
+        let parts = str.split(separator: ":").map { String($0) }
+        if parts.count == 2, let m = Int(parts[0]), let s = Int(parts[1]) { return m * 60 + s }
+        if parts.count == 1, let t = Int(parts[0]) { return t }
+        return nil
     }
 }
 
 // MARK: - SetCircleRow
-// A single set row with a tappable completion circle.
 
 struct SetCircleRow: View {
 
     let set: PerformedSet
-    let onComplete: (_ reps: Int, _ weight: Double?) -> Void
+    let isCardio: Bool
+    let weightUnit: WeightUnit
+    let onComplete: (_ reps: Int, _ weight: Double?, _ durationSeconds: Int?) -> Void
 
     @State private var showingEdit = false
     @State private var editReps: String = ""
     @State private var editWeight: String = ""
+    @State private var editDuration: String = ""
 
     var body: some View {
         HStack {
@@ -116,19 +165,29 @@ struct SetCircleRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 36, alignment: .leading)
 
-            Text("\(set.reps)")
-                .font(.body.monospacedDigit())
-                .frame(maxWidth: .infinity, alignment: .center)
+            if isCardio {
+                Text("\(set.reps)m")
+                    .font(.body.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .center)
+                Text(formatDuration(set.durationSeconds))
+                    .font(.body.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                Text("\(set.reps)")
+                    .font(.body.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .center)
+                Text(formatWeight(set.weight))
+                    .font(.body.monospacedDigit())
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
 
-            Text(formatWeight(set.weight))
-                .font(.body.monospacedDigit())
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            // Completion circle
             Button {
                 if set.isCompleted { return }
-                // Single tap: auto-complete with pre-filled values
-                onComplete(set.reps, set.weight)
+                if isCardio {
+                    onComplete(set.reps, nil, set.durationSeconds)
+                } else {
+                    onComplete(set.reps, set.weight, nil)
+                }
             } label: {
                 Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(set.isCompleted ? .green : .secondary)
@@ -141,33 +200,65 @@ struct SetCircleRow: View {
         .opacity(set.isCompleted ? 0.7 : 1.0)
         .contentShape(Rectangle())
         .onLongPressGesture {
-            if !set.isCompleted {
+            guard !set.isCompleted else { return }
+            if isCardio {
                 editReps = "\(set.reps)"
-                editWeight = set.weight.map { "\(Int($0))" } ?? ""
-                showingEdit = true
+                let dur = formatDuration(set.durationSeconds)
+                editDuration = dur == "--:--" ? "" : dur
+            } else {
+                editReps = "\(set.reps)"
+                // Show in user's display unit
+                editWeight = set.weight.map { displayWeight($0) } ?? ""
             }
+            showingEdit = true
         }
         .alert("Edit & Complete", isPresented: $showingEdit) {
-            TextField("Reps", text: $editReps)
-                .keyboardType(.numberPad)
-            TextField("Weight (optional)", text: $editWeight)
-                .keyboardType(.decimalPad)
-            Button("Cancel", role: .cancel) { }
-            Button("Complete") {
-                let reps = Int(editReps) ?? set.reps
-                let weight = Double(editWeight)
-                onComplete(reps, weight)
+            if isCardio {
+                TextField("Distance (m)", text: $editReps).keyboardType(.numberPad)
+                TextField("Duration (mm:ss)", text: $editDuration)
+                Button("Cancel", role: .cancel) {}
+                Button("Complete") {
+                    let reps = Int(editReps) ?? set.reps
+                    let duration = parseDuration(editDuration) ?? set.durationSeconds
+                    onComplete(reps, nil, duration)
+                }
+            } else {
+                TextField("Reps", text: $editReps).keyboardType(.numberPad)
+                TextField("Weight (\(weightUnit.displayName), optional)", text: $editWeight).keyboardType(.decimalPad)
+                Button("Cancel", role: .cancel) {}
+                Button("Complete") {
+                    let reps = Int(editReps) ?? set.reps
+                    // Convert display-unit input → kg for storage
+                    let weightKg = Double(editWeight).map { weightUnit.toKilograms($0) }
+                    onComplete(reps, weightKg, nil)
+                }
             }
         } message: {
             Text("Adjust values before completing.")
         }
     }
 
-    private func formatWeight(_ weight: Double?) -> String {
-        guard let weight else { return "BW" }
-        if weight.truncatingRemainder(dividingBy: 1) == 0 {
-            return "\(Int(weight))"
-        }
-        return String(format: "%.1f", weight)
+    /// Converts a stored-kg value to the display unit for rendering.
+    private func formatWeight(_ kg: Double?) -> String {
+        guard let kg else { return "BW" }
+        let v = weightUnit.fromKilograms(kg)
+        return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : String(format: "%.1f", v)
+    }
+
+    private func displayWeight(_ kg: Double) -> String {
+        let v = weightUnit.fromKilograms(kg)
+        return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : String(format: "%.1f", v)
+    }
+
+    private func formatDuration(_ seconds: Int?) -> String {
+        guard let s = seconds else { return "--:--" }
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    private func parseDuration(_ str: String) -> Int? {
+        let parts = str.split(separator: ":").map { String($0) }
+        if parts.count == 2, let m = Int(parts[0]), let s = Int(parts[1]) { return m * 60 + s }
+        if parts.count == 1, let t = Int(parts[0]) { return t }
+        return nil
     }
 }

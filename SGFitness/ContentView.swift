@@ -20,7 +20,6 @@ struct ContentView: View {
 
     // Active workout state.
     @State private var activeWorkoutVM: ActiveWorkoutViewModel?
-    @State private var showingActiveWorkout = false
 
     // Onboarding sheet shown on first launch.
     @State private var showingOnboarding = false
@@ -41,7 +40,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            bootstrapUser()
+            if user == nil {
+                bootstrapUser()
+            }
         }
     }
 
@@ -57,6 +58,9 @@ struct ContentView: View {
                 },
                 onStartAdHoc: {
                     startAdHoc(user: user)
+                },
+                onLogWorkout: {
+                    logWorkout(user: user)
                 }
             )
             .tag(0)
@@ -83,17 +87,15 @@ struct ContentView: View {
             }
 
             // Tab 3: Profile
-            ProfileView(user: user)
+            ProfileView(user: user, onDeleteAccount: deleteAccount)
                 .tag(3)
                 .tabItem {
                     Label("Profile", systemImage: "person.circle")
                 }
         }
         // Active workout is presented as a full-screen cover.
-        .fullScreenCover(isPresented: $showingActiveWorkout) {
-            if let activeWorkoutVM {
-                ActiveWorkoutView(viewModel: activeWorkoutVM)
-            }
+        .fullScreenCover(item: $activeWorkoutVM) { vm in
+            ActiveWorkoutView(viewModel: vm)
         }
         // Onboarding sheet on first launch.
         .sheet(isPresented: $showingOnboarding) {
@@ -110,16 +112,48 @@ struct ContentView: View {
         let vm = ActiveWorkoutViewModel(modelContext: modelContext, user: user)
         vm.startFromTemplate(template)
         activeWorkoutVM = vm
-        showingActiveWorkout = true
     }
 
     private func startAdHoc(user: User) {
         let vm = ActiveWorkoutViewModel(modelContext: modelContext, user: user)
         vm.startAdHoc(name: "Quick Workout")
         activeWorkoutVM = vm
-        showingActiveWorkout = true
     }
 
+    private func logWorkout(user: User) {
+        let vm = ActiveWorkoutViewModel(modelContext: modelContext, user: user)
+        vm.startManualEntry(name: "Workout Log")
+        activeWorkoutVM = vm
+    }
+
+
+    // MARK: - Delete Account
+
+    private func deleteAccount() {
+        // Delete all ExerciseDefinitions (not cascade-deleted by User)
+        let defDescriptor = FetchDescriptor<ExerciseDefinition>()
+        if let allDefs = try? modelContext.fetch(defDescriptor) {
+            for def in allDefs {
+                modelContext.delete(def)
+            }
+        }
+
+        // Delete the user (cascade-deletes templates, sessions, badge awards, scheduled workouts)
+        if let currentUser = user {
+            modelContext.delete(currentUser)
+        }
+
+        try? modelContext.save()
+
+        // Reset state and re-bootstrap fresh
+        user = nil
+        templateListVM = nil
+        workoutHistoryVM = nil
+        activeWorkoutVM = nil
+
+        // Re-bootstrap immediately — creates new user, seeds data, shows onboarding
+        bootstrapUser()
+    }
 
     // MARK: - User Bootstrap
     //

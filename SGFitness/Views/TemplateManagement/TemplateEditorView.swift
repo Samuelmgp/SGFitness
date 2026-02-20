@@ -6,6 +6,7 @@ struct TemplateEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: TemplateEditorViewModel
     @State private var showingExercisePicker = false
+    @State private var exercisePickerViewModel: ExercisePickerViewModel?
 
     // Pending exercise definition selected from picker — triggers navigation to config.
     @State private var pendingExerciseDefinition: ExerciseDefinition?
@@ -34,6 +35,17 @@ struct TemplateEditorView: View {
                 TextField("Name", text: $viewModel.name)
                 TextField("Notes", text: $viewModel.notes, axis: .vertical)
                     .lineLimit(3...6)
+
+                Picker("Target Duration", selection: $viewModel.targetDurationMinutes) {
+                    Text("None").tag(nil as Int?)
+                    Text("15 min").tag(15 as Int?)
+                    Text("30 min").tag(30 as Int?)
+                    Text("45 min").tag(45 as Int?)
+                    Text("60 min").tag(60 as Int?)
+                    Text("75 min").tag(75 as Int?)
+                    Text("90 min").tag(90 as Int?)
+                    Text("120 min").tag(120 as Int?)
+                }
             }
 
             Section("Exercises") {
@@ -70,6 +82,7 @@ struct TemplateEditorView: View {
                 }
 
                 Button {
+                    exercisePickerViewModel = ExercisePickerViewModel(modelContext: modelContext)
                     showingExercisePicker = true
                 } label: {
                     Label("Add Exercise", systemImage: "plus.circle")
@@ -98,11 +111,12 @@ struct TemplateEditorView: View {
                 showingExerciseConfig = true
             }
         }) {
-            let picker = ExercisePickerViewModel(modelContext: modelContext)
-            ExercisePickerView(viewModel: picker, onSelect: { exercise in
-                pendingExerciseDefinition = exercise
-                showingExercisePicker = false
-            })
+            if let picker = exercisePickerViewModel {
+                ExercisePickerView(viewModel: picker, onSelect: { exercise in
+                    pendingExerciseDefinition = exercise
+                    showingExercisePicker = false
+                })
+            }
         }
         .navigationDestination(isPresented: $showingExerciseConfig) {
             if let definition = pendingExerciseDefinition {

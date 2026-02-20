@@ -8,6 +8,7 @@ struct HomeView: View {
     let user: User
     let onStartFromTemplate: (WorkoutTemplate) -> Void
     let onStartAdHoc: () -> Void
+    let onLogWorkout: () -> Void
 
     @State private var showingTemplatePicker = false
     @State private var pendingTemplate: WorkoutTemplate?
@@ -53,6 +54,17 @@ struct HomeView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.large)
+
+                        Button {
+                            onLogWorkout()
+                        } label: {
+                            Label("Log a Workout", systemImage: "square.and.pencil")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
                     }
                     .padding(.horizontal, 32)
 
@@ -64,7 +76,11 @@ struct HomeView: View {
             .sheet(isPresented: $showingTemplatePicker, onDismiss: {
                 if let template = pendingTemplate {
                     pendingTemplate = nil
-                    onStartFromTemplate(template)
+                    // Delay to let the sheet dismiss animation finish before
+                    // ContentView presents the fullScreenCover.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onStartFromTemplate(template)
+                    }
                 }
             }) {
                 NavigationStack {

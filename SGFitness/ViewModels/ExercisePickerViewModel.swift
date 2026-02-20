@@ -39,8 +39,8 @@ final class ExercisePickerViewModel {
         fetchRecentlyUsed()
     }
 
-    func createCustomExercise(name: String, muscleGroup: String? = nil, equipment: String? = nil) -> ExerciseDefinition {
-        let definition = ExerciseDefinition(name: name, muscleGroup: muscleGroup, equipment: equipment)
+    func createCustomExercise(name: String, muscleGroup: String? = nil, equipment: String? = nil, exerciseType: String = "strength") -> ExerciseDefinition {
+        let definition = ExerciseDefinition(name: name, muscleGroup: muscleGroup, equipment: equipment, exerciseType: exerciseType)
         modelContext.insert(definition)
         do {
             try modelContext.save()
@@ -50,6 +50,29 @@ final class ExercisePickerViewModel {
         definitions.append(definition)
         definitions.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         return definition
+    }
+
+    func updateExercise(_ definition: ExerciseDefinition, name: String, muscleGroup: String?, equipment: String?, exerciseType: String = "strength") {
+        definition.name = name
+        definition.muscleGroup = muscleGroup
+        definition.equipment = equipment
+        definition.exerciseType = exerciseType
+        do {
+            try modelContext.save()
+        } catch {
+            print("[ExercisePickerViewModel] Failed to update exercise: \(error)")
+        }
+        definitions.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func deleteExercise(_ definition: ExerciseDefinition) {
+        definitions.removeAll { $0.id == definition.id }
+        modelContext.delete(definition)
+        do {
+            try modelContext.save()
+        } catch {
+            print("[ExercisePickerViewModel] Failed to delete exercise: \(error)")
+        }
     }
 
     private func fetchRecentlyUsed() {

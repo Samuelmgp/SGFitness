@@ -11,6 +11,7 @@ struct NewTemplateView: View {
 
     @State private var name = ""
     @State private var notes = ""
+    @State private var targetDurationMinutes: Int? = nil
 
     var body: some View {
         Form {
@@ -18,6 +19,17 @@ struct NewTemplateView: View {
                 TextField("Template Name", text: $name)
                 TextField("Notes (optional)", text: $notes, axis: .vertical)
                     .lineLimit(3...6)
+
+                Picker("Target Duration", selection: $targetDurationMinutes) {
+                    Text("None").tag(nil as Int?)
+                    Text("15 min").tag(15 as Int?)
+                    Text("30 min").tag(30 as Int?)
+                    Text("45 min").tag(45 as Int?)
+                    Text("60 min").tag(60 as Int?)
+                    Text("75 min").tag(75 as Int?)
+                    Text("90 min").tag(90 as Int?)
+                    Text("120 min").tag(120 as Int?)
+                }
             }
         }
         .navigationTitle("New Template")
@@ -30,7 +42,7 @@ struct NewTemplateView: View {
                 Button("Create") {
                     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
-                    let template = WorkoutTemplate(name: trimmed, notes: notes, owner: user)
+                    let template = WorkoutTemplate(name: trimmed, notes: notes, targetDurationMinutes: targetDurationMinutes, owner: user)
                     modelContext.insert(template)
                     try? modelContext.save()
                     onCreated(template)

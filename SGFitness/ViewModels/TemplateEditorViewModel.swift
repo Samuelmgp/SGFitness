@@ -17,6 +17,7 @@ final class TemplateEditorViewModel {
     /// Buffered edit fields — written to the model on save().
     var name: String
     var notes: String
+    var targetDurationMinutes: Int?
 
     /// Tracks whether exercises have been modified since last save.
     @ObservationIgnored private var exercisesModified: Bool = false
@@ -26,7 +27,7 @@ final class TemplateEditorViewModel {
 
     /// Whether buffered values differ from the persisted model.
     var hasUnsavedChanges: Bool {
-        name != template.name || notes != template.notes || exercisesModified
+        name != template.name || notes != template.notes || targetDurationMinutes != template.targetDurationMinutes || exercisesModified
     }
 
     init(modelContext: ModelContext, template: WorkoutTemplate) {
@@ -34,6 +35,7 @@ final class TemplateEditorViewModel {
         self.template = template
         self.name = template.name
         self.notes = template.notes
+        self.targetDurationMinutes = template.targetDurationMinutes
         self.exercises = template.exercises.sorted { $0.order < $1.order }
     }
 
@@ -128,6 +130,7 @@ final class TemplateEditorViewModel {
     func save() {
         template.name = name
         template.notes = notes
+        template.targetDurationMinutes = targetDurationMinutes
         template.updatedAt = .now
         exercisesModified = false
         persistChanges()

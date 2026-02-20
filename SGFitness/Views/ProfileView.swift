@@ -9,6 +9,9 @@ struct ProfileView: View {
 
     @Environment(\.modelContext) private var modelContext
     let user: User
+    var onDeleteAccount: (() -> Void)?
+
+    @State private var showingDeleteConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -76,8 +79,46 @@ struct ProfileView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                // MARK: - Library & Records
+                Section("Library") {
+                    NavigationLink {
+                        PersonalRecordsView()
+                    } label: {
+                        Label("Personal Records", systemImage: "trophy")
+                    }
+
+                    NavigationLink {
+                        ExerciseLibraryView()
+                    } label: {
+                        Label("Exercise Library", systemImage: "books.vertical")
+                    }
+                }
+
+                // MARK: - Danger Zone
+                if let onDeleteAccount {
+                    Section {
+                        Button(role: .destructive) {
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Label("Delete Account", systemImage: "trash")
+                        }
+                    }
+                }
             }
             .navigationTitle("Profile")
+            .confirmationDialog(
+                "Delete Account",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Everything", role: .destructive) {
+                    onDeleteAccount?()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete all your data including workout history, templates, and exercises. The app will reset to its initial state.")
+            }
         }
     }
 }

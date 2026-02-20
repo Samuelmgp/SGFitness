@@ -37,10 +37,18 @@ struct YearGridView: View {
                     ForEach(weeksInYear(), id: \.self) { weekStart in
                         VStack(spacing: cellSpacing) {
                             ForEach(daysInWeek(from: weekStart), id: \.self) { day in
-                                let status = viewModel.cellData[calendar.startOfDay(for: day)] ?? .none
+                                let dayStart = calendar.startOfDay(for: day)
+                                let status = viewModel.cellData[dayStart] ?? .none
+                                let isPRDay = viewModel.prDates.contains(dayStart)
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(colorForStatus(status))
                                     .frame(width: cellSize, height: cellSize)
+                                    .overlay {
+                                        if isPRDay {
+                                            RoundedRectangle(cornerRadius: 2)
+                                                .strokeBorder(.yellow, lineWidth: 1.5)
+                                        }
+                                    }
                             }
                         }
                     }

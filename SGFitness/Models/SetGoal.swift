@@ -23,6 +23,9 @@ final class SetGoal {
     /// Target weight. Nil means bodyweight or unspecified.
     var targetWeight: Double?
 
+    /// Target duration in seconds for cardio sets. Nil for strength sets.
+    var targetDurationSeconds: Int? = nil
+
     // MARK: - Relationships
 
     var exerciseTemplate: ExerciseTemplate?

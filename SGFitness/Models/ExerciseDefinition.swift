@@ -29,6 +29,9 @@ final class ExerciseDefinition {
     /// Optional equipment tag (e.g. "Barbell", "Dumbbell", "Bodyweight").
     var equipment: String?
 
+    /// Exercise type: "strength" (default) or "cardio".
+    var exerciseType: String = "strength"
+
     var createdAt: Date
 
     // MARK: - Relationships
@@ -46,12 +49,14 @@ final class ExerciseDefinition {
         name: String,
         muscleGroup: String? = nil,
         equipment: String? = nil,
+        exerciseType: String = "strength",
         createdAt: Date = .now
     ) {
         self.id = id
         self.name = name
         self.muscleGroup = muscleGroup
         self.equipment = equipment
+        self.exerciseType = exerciseType
         self.createdAt = createdAt
         self.exerciseTemplates = []
         self.exerciseSessions = []

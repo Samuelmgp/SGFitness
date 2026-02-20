@@ -40,13 +40,26 @@ import Observation
 //   finish, discard) for crash safety. Individual set/effort mutations rely
 //   on SwiftData's auto-save on scene-phase transitions.
 
+// MARK: - PR Support Types
+
+struct PRBaseline {
+    var maxWeightKg: Double?
+    var bestVolumeKg: Double?
+}
+
+struct PRAlert: Equatable {
+    var exerciseName: String
+    var metric: String
+}
+
 @Observable
-final class ActiveWorkoutViewModel {
+final class ActiveWorkoutViewModel: Identifiable {
 
     // MARK: - Dependencies
 
     // `let` constants are not tracked by @Observable — reading these in a
     // view won't subscribe to changes (there are none to subscribe to).
+    let id = UUID()
     private let modelContext: ModelContext
     private let user: User
 
@@ -96,6 +109,26 @@ final class ActiveWorkoutViewModel {
     @ObservationIgnored private var restTimer: Timer?
     @ObservationIgnored private var elapsedTimer: Timer?
 
+    // MARK: - PR Detection State
+
+    /// Pre-workout baselines keyed by ExerciseDefinition.id.
+    /// Loaded lazily when an exercise is added. @ObservationIgnored because
+    /// views never read this dictionary directly.
+    @ObservationIgnored private var prBaselines: [UUID: PRBaseline] = [:]
+
+    /// Non-nil when the user just set a new PR. The view observes this
+    /// and clears it after showing the banner.
+    private(set) var latestPRAlert: PRAlert?
+
+    // MARK: - User Preferences
+
+    /// The user's preferred weight display unit. Read by the view layer for conversions.
+    var preferredWeightUnit: WeightUnit { user.preferredWeightUnit }
+
+    /// When true, this session is a manual log (no live timer). The user will
+    /// provide the workout duration explicitly when finishing.
+    private(set) var isManualEntry: Bool = false
+
     // MARK: - Derived Properties
 
     /// Exercises in display order.
@@ -113,6 +146,12 @@ final class ActiveWorkoutViewModel {
     /// Whether the workout has been completed (completedAt is non-nil).
     var isFinished: Bool {
         session?.completedAt != nil
+    }
+
+    /// Target workout duration in seconds, if set on the session.
+    var targetDurationSeconds: TimeInterval? {
+        guard let minutes = session?.targetDurationMinutes else { return nil }
+        return TimeInterval(minutes * 60)
     }
 
     // MARK: - Init
@@ -203,6 +242,9 @@ final class ActiveWorkoutViewModel {
             }
         }
 
+        // Copy the template's target duration so the timer ring knows the goal.
+        session.targetDurationMinutes = template.targetDurationMinutes
+
         self.session = session
 
         // Explicit save after the batch insert. SwiftData auto-saves on
@@ -212,6 +254,11 @@ final class ActiveWorkoutViewModel {
         persistChanges()
 
         startElapsedTimer()
+
+        // Load pre-workout baselines for all exercises for live PR detection.
+        for exerciseSession in exercises {
+            loadBaseline(for: exerciseSession)
+        }
     }
 
     /// Start a blank ad-hoc workout with no pre-populated exercises.
@@ -226,6 +273,17 @@ final class ActiveWorkoutViewModel {
         self.session = session
         persistChanges()
         startElapsedTimer()
+    }
+
+    /// Start a manual-entry workout: same as ad-hoc but the timer does not run.
+    /// The user provides the final duration when calling finishWorkout(manualDurationMinutes:).
+    func startManualEntry(name: String) {
+        let session = WorkoutSession(name: name, user: user)
+        modelContext.insert(session)
+        self.session = session
+        isManualEntry = true
+        persistChanges()
+        // Timer intentionally not started — user will supply duration on finish.
     }
 
     // MARK: - Exercise Management
@@ -250,6 +308,9 @@ final class ActiveWorkoutViewModel {
         modelContext.insert(exerciseSession)
 
         session.updatedAt = .now
+
+        // Load pre-workout baseline for live PR detection.
+        loadBaseline(for: exerciseSession)
     }
 
     /// Remove an exercise at the given display index.
@@ -353,6 +414,40 @@ final class ActiveWorkoutViewModel {
         // Auto-start the rest timer so the user doesn't have to tap again.
         // If the exercise has no rest duration configured, this is a no-op.
         autoStartRestTimer(for: exercise)
+
+        // Check if this set is a new personal record.
+        checkForPR(exerciseIndex: exerciseIndex, reps: reps, weight: weight)
+    }
+
+    /// Log a cardio set (distance + duration) on the exercise at `exerciseIndex`.
+    ///
+    /// - Parameters:
+    ///   - exerciseIndex: Index into the `exercises` array (sorted by order).
+    ///   - distanceMeters: Distance in meters (stored in the `reps` field).
+    ///   - durationSeconds: Elapsed time in seconds.
+    func logSet(exerciseIndex: Int, distanceMeters: Int, durationSeconds: Int) {
+        let sorted = exercises
+        guard sorted.indices.contains(exerciseIndex) else { return }
+
+        let exercise = sorted[exerciseIndex]
+        let nextOrder = exercise.performedSets
+            .map(\.order)
+            .max()
+            .map { $0 + 1 } ?? 0
+
+        let set = PerformedSet(
+            order: nextOrder,
+            reps: distanceMeters,
+            weight: nil,
+            isCompleted: true,
+            completedAt: .now,
+            exerciseSession: exercise
+        )
+        set.durationSeconds = durationSeconds
+        modelContext.insert(set)
+        session?.updatedAt = .now
+
+        autoStartRestTimer(for: exercise)
     }
 
     /// Mark a pre-populated set (copied from a SetGoal) as completed.
@@ -364,15 +459,23 @@ final class ActiveWorkoutViewModel {
     ///
     /// This is a separate path from logSet() because the PerformedSet already
     /// exists — we're updating it, not creating it.
-    func completeSet(_ set: PerformedSet, reps: Int, weight: Double?) {
+    func completeSet(_ set: PerformedSet, reps: Int, weight: Double?, durationSeconds: Int? = nil) {
         set.reps = reps
         set.weight = weight
+        if let dur = durationSeconds {
+            set.durationSeconds = dur
+        }
         set.isCompleted = true
         set.completedAt = .now
         session?.updatedAt = .now
 
         if let exercise = set.exerciseSession {
             autoStartRestTimer(for: exercise)
+
+            let sorted = exercises
+            if let idx = sorted.firstIndex(where: { $0.id == exercise.id }) {
+                checkForPR(exerciseIndex: idx, reps: reps, weight: weight)
+            }
         }
     }
 
@@ -554,6 +657,52 @@ final class ActiveWorkoutViewModel {
         persistChanges()
     }
 
+    /// Finish a manual-entry workout with a user-supplied duration.
+    /// Sets completedAt = startedAt + duration so history shows the correct time.
+    func finishWorkout(manualDurationMinutes: Int) {
+        guard let session, !isFinished else { return }
+
+        let duration = TimeInterval(max(1, manualDurationMinutes) * 60)
+        let completed = session.startedAt.addingTimeInterval(duration)
+        session.completedAt = completed
+        session.updatedAt = completed
+        elapsedTime = duration
+
+        stopRestTimer()
+        persistChanges()
+    }
+
+    /// Save the current workout's exercises as a new template.
+    func saveAsTemplate() {
+        guard let session else { return }
+
+        let template = WorkoutTemplate(name: session.name, owner: user)
+        modelContext.insert(template)
+
+        for (i, exerciseSession) in exercises.enumerated() {
+            let exerciseTemplate = ExerciseTemplate(
+                name: exerciseSession.name,
+                order: i,
+                workoutTemplate: template
+            )
+            exerciseTemplate.exerciseDefinition = exerciseSession.exerciseDefinition
+            exerciseTemplate.restSeconds = exerciseSession.restSeconds
+            modelContext.insert(exerciseTemplate)
+
+            let completedSets = exerciseSession.performedSets
+                .filter(\.isCompleted)
+                .sorted { $0.order < $1.order }
+
+            for (j, set) in completedSets.enumerated() {
+                let goal = SetGoal(order: j, targetReps: set.reps, exerciseTemplate: exerciseTemplate)
+                goal.targetWeight = set.weight
+                modelContext.insert(goal)
+            }
+        }
+
+        persistChanges()
+    }
+
     /// Discard the workout entirely.
     ///
     /// Deletes the session from the SwiftData store. The cascade delete rule
@@ -576,6 +725,92 @@ final class ActiveWorkoutViewModel {
         session = nil
         currentExerciseIndex = 0
         elapsedTime = 0
+    }
+
+    // MARK: - PR Detection
+
+    /// Load the pre-workout baseline for an exercise so we can detect new PRs during the session.
+    private func loadBaseline(for exerciseSession: ExerciseSession) {
+        guard let definition = exerciseSession.exerciseDefinition else { return }
+        let defId = definition.id
+        guard prBaselines[defId] == nil else { return } // already loaded
+
+        // Only strength exercises use weight-based PR tracking.
+        guard definition.exerciseType != "cardio" else { return }
+
+        let completedSessions = definition.exerciseSessions.filter {
+            $0.workoutSession?.completedAt != nil
+        }
+
+        var maxWeight: Double?
+        var bestVolume: Double?
+
+        for session in completedSessions {
+            let sets = session.performedSets.filter(\.isCompleted)
+
+            let sessionMax = sets.compactMap(\.weight).max()
+            if let m = sessionMax, (maxWeight == nil || m > maxWeight!) {
+                maxWeight = m
+            }
+
+            let vol = sets.reduce(0.0) { $0 + (($1.weight ?? 0) * Double($1.reps)) }
+            if vol > 0, (bestVolume == nil || vol > bestVolume!) {
+                bestVolume = vol
+            }
+        }
+
+        prBaselines[defId] = PRBaseline(maxWeightKg: maxWeight, bestVolumeKg: bestVolume)
+    }
+
+    /// Check if the most recent set for the exercise at `exerciseIndex` is a new PR.
+    /// Sets `latestPRAlert` if a new max weight or best volume is detected.
+    private func checkForPR(exerciseIndex: Int, reps: Int, weight: Double?) {
+        let sorted = exercises
+        guard sorted.indices.contains(exerciseIndex) else { return }
+        let exercise = sorted[exerciseIndex]
+        guard let definition = exercise.exerciseDefinition else { return }
+        let defId = definition.id
+        guard var baseline = prBaselines[defId] else { return }
+
+        // Max weight check
+        if let weight = weight, weight > 0 {
+            if baseline.maxWeightKg == nil || weight > baseline.maxWeightKg! {
+                latestPRAlert = PRAlert(
+                    exerciseName: exercise.name,
+                    metric: "Max weight: \(formatWeightForAlert(weight)) kg"
+                )
+                baseline.maxWeightKg = weight
+                prBaselines[defId] = baseline
+                return
+            }
+        }
+
+        // Best volume check (sum of completed sets for this exercise so far this session)
+        let completedSets = exercise.performedSets.filter(\.isCompleted)
+        let sessionVolume = completedSets.reduce(0.0) { total, set in
+            guard let w = set.weight else { return total }
+            return total + Double(set.reps) * w
+        }
+        if sessionVolume > 0, (baseline.bestVolumeKg == nil || sessionVolume > baseline.bestVolumeKg!) {
+            latestPRAlert = PRAlert(
+                exerciseName: exercise.name,
+                metric: "Best volume: \(formatWeightForAlert(sessionVolume)) kg"
+            )
+            baseline.bestVolumeKg = sessionVolume
+            prBaselines[defId] = baseline
+        }
+    }
+
+    /// Called by the view after the PR banner has been displayed.
+    func clearPRAlert() {
+        latestPRAlert = nil
+    }
+
+    private func formatWeightForAlert(_ weight: Double) -> String {
+        if weight.truncatingRemainder(dividingBy: 1) == 0 {
+            return "\(Int(weight))"
+        }
+        return String(format: "%.1f", weight)
     }
 
     // MARK: - Persistence Helper

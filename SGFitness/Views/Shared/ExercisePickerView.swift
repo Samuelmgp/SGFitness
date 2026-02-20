@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - ExercisePickerView
 // Presented as a sheet from ActiveWorkoutView or TemplateEditorView.
 // Shows a searchable list of exercises from the ExerciseDefinition catalog.
-// Supports creating custom exercises with full details.
+// Supports creating custom exercises via ExerciseEditorView.
 
 struct ExercisePickerView: View {
 
@@ -14,14 +14,8 @@ struct ExercisePickerView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    // Create exercise state
     @State private var showingCreateSheet = false
-    @State private var newExerciseName = ""
-    @State private var newExerciseMuscleGroup = "Chest"
-    @State private var newExerciseEquipment = "Barbell"
-
-    private let muscleGroups = ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core"]
-    private let equipmentTypes = ["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight"]
+    @State private var pendingNewExerciseName = ""
 
     var body: some View {
         NavigationStack {
@@ -39,10 +33,15 @@ struct ExercisePickerView: View {
                 Section(viewModel.searchText.isEmpty ? "All Exercises" : "Results") {
                     if viewModel.filteredDefinitions.isEmpty {
                         Button {
-                            newExerciseName = viewModel.searchText
+                            pendingNewExerciseName = viewModel.searchText
                             showingCreateSheet = true
                         } label: {
-                            Label("Create \"\(viewModel.searchText)\"", systemImage: "plus.circle")
+                            Label(
+                                viewModel.searchText.isEmpty
+                                    ? "Create New Exercise"
+                                    : "Create \"\(viewModel.searchText)\"",
+                                systemImage: "plus.circle"
+                            )
                         }
                     } else {
                         ForEach(viewModel.filteredDefinitions, id: \.id) { definition in
@@ -57,15 +56,11 @@ struct ExercisePickerView: View {
             .searchable(text: $viewModel.searchText, prompt: "Search exercises")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        newExerciseName = ""
-                        newExerciseMuscleGroup = "Chest"
-                        newExerciseEquipment = "Barbell"
+                        pendingNewExerciseName = ""
                         showingCreateSheet = true
                     } label: {
                         Image(systemName: "plus")
@@ -81,53 +76,32 @@ struct ExercisePickerView: View {
         }
     }
 
-    // MARK: - Create Exercise Sheet
+    // MARK: - Create Sheet
+    // Uses ExerciseEditorView so type picker (Strength/Cardio) is available.
+    // After saving, the newly created exercise is auto-selected.
 
     private var createExerciseSheet: some View {
         NavigationStack {
-            Form {
-                Section("Exercise Details") {
-                    TextField("Exercise Name", text: $newExerciseName)
-
-                    Picker("Muscle Group", selection: $newExerciseMuscleGroup) {
-                        ForEach(muscleGroups, id: \.self) { group in
-                            Text(group).tag(group)
-                        }
-                    }
-
-                    Picker("Equipment", selection: $newExerciseEquipment) {
-                        ForEach(equipmentTypes, id: \.self) { equipment in
-                            Text(equipment).tag(equipment)
-                        }
-                    }
+            ExerciseEditorView(
+                viewModel: viewModel,
+                mode: .create,
+                initialName: pendingNewExerciseName
+            ) {
+                // onSave: pick the most recently created definition
+                viewModel.fetchDefinitions()
+                if let newest = viewModel.definitions.max(by: { $0.createdAt < $1.createdAt }) {
+                    showingCreateSheet = false
+                    onSelect(newest)
+                    dismiss()
                 }
             }
-            .navigationTitle("Create Exercise")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        showingCreateSheet = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        let trimmed = newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        let definition = viewModel.createCustomExercise(
-                            name: trimmed,
-                            muscleGroup: newExerciseMuscleGroup,
-                            equipment: newExerciseEquipment
-                        )
-                        showingCreateSheet = false
-                        onSelect(definition)
-                        dismiss()
-                    }
-                    .disabled(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Cancel") { showingCreateSheet = false }
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     // MARK: - Row
