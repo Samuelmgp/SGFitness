@@ -168,6 +168,11 @@ struct ContentView: View {
             if let existing = users.first {
                 user = existing
                 initViewModels(user: existing)
+                // One-time migration: build stored PRs if none exist yet.
+                let prCheck = FetchDescriptor<PersonalRecord>()
+                if let prRecords = try? modelContext.fetch(prCheck), prRecords.isEmpty {
+                    PersonalRecordService(modelContext: modelContext).rebuildAllPRs()
+                }
             } else {
                 let newUser = User(name: "Athlete")
                 modelContext.insert(newUser)
@@ -294,6 +299,6 @@ struct ContentView: View {
             WorkoutTemplate.self, ExerciseTemplate.self, SetGoal.self, StretchGoal.self,
             WorkoutSession.self, ExerciseSession.self, PerformedSet.self, StretchEntry.self,
             WorkoutExercise.self, ExerciseSet.self,
-            ScheduledWorkout.self,
+            ScheduledWorkout.self, PersonalRecord.self,
         ], inMemory: true)
 }

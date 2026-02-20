@@ -12,7 +12,6 @@ struct ExerciseDefinitionDetailView: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var showingEditSheet = false
-    @State private var prs: ExercisePRs?
 
     var body: some View {
         List {
@@ -36,65 +35,12 @@ struct ExerciseDefinitionDetailView: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
-            // MARK: - Personal Bests
+            // MARK: - Personal Bests (Podium)
             Section("Personal Bests") {
-                if let prs {
-                    if definition.exerciseType == .cardio {
-                        if prs.cardioRecords.isEmpty {
-                            Text("No records yet")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(prs.cardioRecords.keys.sorted(), id: \.self) { distance in
-                                if let record = prs.cardioRecords[distance] {
-                                    HStack {
-                                        Text(formatDistance(distance))
-                                            .font(.body)
-                                        Spacer()
-                                        VStack(alignment: .trailing, spacing: 2) {
-                                            Text(formatDuration(record.bestTimeSeconds))
-                                                .font(.body.bold())
-                                            Text(record.date, style: .date)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        if prs.maxWeightKg == nil && prs.bestVolumeKg == nil {
-                            Text("No records yet")
-                                .foregroundStyle(.secondary)
-                        }
-                        if let maxWeight = prs.maxWeightKg, let reps = prs.maxWeightReps, let date = prs.maxWeightDate {
-                            HStack {
-                                Label("Max Weight", systemImage: "trophy")
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("\(formatWeight(maxWeight)) kg × \(reps) reps")
-                                        .font(.body.bold())
-                                    Text(date, style: .date)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        if let volume = prs.bestVolumeKg, let date = prs.bestVolumeDate {
-                            HStack {
-                                Label("Best Volume", systemImage: "chart.bar.fill")
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("\(formatWeight(volume)) kg")
-                                        .font(.body.bold())
-                                    Text(date, style: .date)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
+                if definition.exerciseType == .cardio {
+                    cardioPodium
                 } else {
-                    ProgressView()
+                    strengthPodium
                 }
             }
 
@@ -143,7 +89,6 @@ struct ExerciseDefinitionDetailView: View {
             NavigationStack {
                 ExerciseEditorView(viewModel: viewModel, mode: .edit(definition)) {
                     viewModel.fetchDefinitions()
-                    loadPRs()
                 }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -152,15 +97,85 @@ struct ExerciseDefinitionDetailView: View {
                 }
             }
         }
-        .onAppear { loadPRs() }
+    }
+
+    // MARK: - Podium Views
+
+    private var strengthPodium: some View {
+        let maxWeightRecords = definition.personalRecords
+            .filter { $0.recordTypeRaw == PRRecordType.maxWeight.rawValue }
+            .sorted { $0.medal.rank < $1.medal.rank }
+
+        let bestVolumeRecords = definition.personalRecords
+            .filter { $0.recordTypeRaw == PRRecordType.bestVolume.rawValue }
+            .sorted { $0.medal.rank < $1.medal.rank }
+
+        return Group {
+            if maxWeightRecords.isEmpty && bestVolumeRecords.isEmpty {
+                Text("No records yet")
+                    .foregroundStyle(.secondary)
+            }
+
+            if !maxWeightRecords.isEmpty {
+                ForEach(maxWeightRecords, id: \.id) { record in
+                    let valueText = record.valueKg.map { kg in
+                        let repsStr = record.reps.map { " × \($0) reps" } ?? ""
+                        return "\(formatWeight(kg)) kg\(repsStr)"
+                    } ?? ""
+                    podiumRow(record: record, label: "Max Weight", valueText: valueText)
+                }
+            }
+
+            if !bestVolumeRecords.isEmpty {
+                ForEach(bestVolumeRecords, id: \.id) { record in
+                    let valueText = record.valueKg.map { "\(formatWeight($0)) kg" } ?? ""
+                    podiumRow(record: record, label: "Best Volume", valueText: valueText)
+                }
+            }
+        }
+    }
+
+    private var cardioPodium: some View {
+        let goldRecords = definition.personalRecords
+            .filter { $0.recordTypeRaw == PRRecordType.cardioTime.rawValue && $0.medalRaw == PRMedal.gold.rawValue }
+            .sorted { ($0.distanceMeters ?? 0) < ($1.distanceMeters ?? 0) }
+
+        return Group {
+            if goldRecords.isEmpty {
+                Text("No records yet")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(goldRecords, id: \.id) { record in
+                    let distLabel = record.distanceMeters.map { formatDistance($0) } ?? ""
+                    let timeText = record.durationSeconds.map { formatDuration($0) } ?? ""
+                    podiumRow(record: record, label: distLabel, valueText: timeText)
+                }
+            }
+        }
+    }
+
+    private func podiumRow(record: PersonalRecord, label: String, valueText: String) -> some View {
+        HStack {
+            Image(systemName: record.medal.sfSymbol)
+                .foregroundStyle(medalColor(record.medal))
+            Text(label)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(valueText).font(.body.bold())
+                Text(record.achievedAt, style: .date).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func medalColor(_ medal: PRMedal) -> Color {
+        switch medal {
+        case .gold:   return .yellow
+        case .silver: return Color(.systemGray)
+        case .bronze: return Color(red: 0.8, green: 0.5, blue: 0.2)
+        }
     }
 
     // MARK: - Helpers
-
-    private func loadPRs() {
-        let prsVM = PRsViewModel(modelContext: modelContext)
-        prs = prsVM.computePRs(for: definition)
-    }
 
     private func setsSummary(for session: ExerciseSession) -> String {
         let completed = session.performedSets

@@ -48,6 +48,11 @@ final class ExerciseDefinition {
     @Relationship(deleteRule: .nullify, inverse: \WorkoutExercise.exerciseDefinition)
     var workoutExercises: [WorkoutExercise]
 
+    /// Stored personal records for this exercise (gold/silver/bronze podium).
+    /// Cascade-deleted when the exercise definition is removed.
+    @Relationship(deleteRule: .cascade, inverse: \PersonalRecord.exerciseDefinition)
+    var personalRecords: [PersonalRecord]
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -65,5 +70,6 @@ final class ExerciseDefinition {
         self.exerciseTemplates = []
         self.exerciseSessions = []
         self.workoutExercises = []
+        self.personalRecords = []
     }
 }

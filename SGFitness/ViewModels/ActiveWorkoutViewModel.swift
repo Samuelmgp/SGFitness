@@ -716,6 +716,9 @@ final class ActiveWorkoutViewModel: Identifiable {
         // Explicit save: the completed session should be durable immediately.
         // If the app crashes after this point, the workout is preserved.
         persistChanges()
+
+        // Evaluate and store personal records for this session.
+        PersonalRecordService(modelContext: modelContext).evaluatePRs(for: session)
     }
 
     /// Finish a manual-entry workout with a user-supplied duration.
@@ -731,6 +734,9 @@ final class ActiveWorkoutViewModel: Identifiable {
 
         stopRestTimer()
         persistChanges()
+
+        // Evaluate and store personal records for this session.
+        PersonalRecordService(modelContext: modelContext).evaluatePRs(for: session)
     }
 
     /// Save the current workout's exercises as a new template.

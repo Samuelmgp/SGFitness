@@ -89,38 +89,15 @@ final class YearGridViewModel {
         cellData = data
 
         // MARK: - PR Dates
-        // For each exercise, scan sessions chronologically and detect when a
-        // new running max weight is set. Mark those days in the current year.
+        // Fetch gold PersonalRecords achieved in this year and mark their days.
         var prDatesSet = Set<Date>()
 
-        let defDescriptor = FetchDescriptor<ExerciseDefinition>()
-        let definitions = (try? modelContext.fetch(defDescriptor)) ?? []
-
-        for definition in definitions {
-            guard definition.exerciseType != .cardio else { continue }
-
-            let completedExerciseSessions = definition.exerciseSessions.filter {
-                $0.workoutSession?.completedAt != nil
-            }.sorted {
-                ($0.workoutSession?.completedAt ?? .distantPast) < ($1.workoutSession?.completedAt ?? .distantPast)
-            }
-
-            var runningMaxWeight: Double = 0
-            for exerciseSession in completedExerciseSessions {
-                guard let completedAt = exerciseSession.workoutSession?.completedAt else { continue }
-                let maxWeight = exerciseSession.performedSets
-                    .filter(\.isCompleted)
-                    .compactMap(\.weight)
-                    .max() ?? 0
-
-                if maxWeight > runningMaxWeight {
-                    runningMaxWeight = maxWeight
-                    let day = calendar.startOfDay(for: completedAt)
-                    if calendar.component(.year, from: day) == year {
-                        prDatesSet.insert(day)
-                    }
-                }
-            }
+        let prDescriptor = FetchDescriptor<PersonalRecord>(
+            predicate: #Predicate { $0.achievedAt >= yearStart && $0.achievedAt < yearEnd }
+        )
+        let allPRsInYear = (try? modelContext.fetch(prDescriptor)) ?? []
+        for record in allPRsInYear where record.medal == PRMedal.gold {
+            prDatesSet.insert(calendar.startOfDay(for: record.achievedAt))
         }
 
         prDates = prDatesSet

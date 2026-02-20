@@ -81,7 +81,7 @@ struct PersonalRecordsView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Image(systemName: "trophy.fill")
+            Image(systemName: PRMedal.gold.sfSymbol)
                 .foregroundStyle(.yellow)
                 .font(.caption)
         }

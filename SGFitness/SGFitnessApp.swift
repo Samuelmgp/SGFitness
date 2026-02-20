@@ -16,10 +16,15 @@ struct SGFitnessApp: App {
             WorkoutTemplate.self,
             ExerciseTemplate.self,
             SetGoal.self,
+            StretchGoal.self,
             WorkoutSession.self,
             ExerciseSession.self,
             PerformedSet.self,
+            StretchEntry.self,
+            WorkoutExercise.self,
+            ExerciseSet.self,
             ScheduledWorkout.self,
+            PersonalRecord.self,
         ])
     }
 }
