@@ -69,6 +69,7 @@
 				Views/Shared/BadgeView.swift,
 				Views/Shared/CustomButton.swift,
 				Views/Shared/ExercisePickerView.swift,
+				Views/Shared/MuscleDiagramView.swift,
 				Views/TemplateManagement/ExerciseConfigView.swift,
 				Views/TemplateManagement/ExerciseDetailView.swift,
 				Views/TemplateManagement/NewTemplateView.swift,

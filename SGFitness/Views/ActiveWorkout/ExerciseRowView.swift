@@ -17,11 +17,14 @@ struct ExerciseCardView: View {
     let onRemoveSet: ((PerformedSet) -> Void)?
     /// Called when user taps the checkmark of an already-completed set to un-complete it.
     let onDeselectSet: ((PerformedSet) -> Void)?
+    /// Called when user swipes the exercise header and taps the remove button. Nil = swipe hidden.
+    let onRemoveExercise: (() -> Void)?
 
     @State private var showingAddSet = false
     @State private var newSetReps: String = "10"
     @State private var newSetWeight: String = ""
     @State private var newSetDuration: String = ""
+    @State private var headerSwiped = false
 
     private var isCardio: Bool {
         exercise.exerciseDefinition?.exerciseType == .cardio
@@ -37,32 +40,72 @@ struct ExerciseCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // MARK: - Exercise Header
-            HStack(spacing: 10) {
-                // Muscle-group or exercise-type icon badge
-                let iconSymbol = exercise.exerciseDefinition?.muscleGroup?.sfSymbol
-                    ?? exercise.exerciseDefinition?.exerciseType.sfSymbol
-                    ?? "dumbbell"
-                let iconColor  = exercise.exerciseDefinition?.muscleGroup?.color ?? Color.secondary
+            // MARK: - Exercise Header (swipe left to reveal Remove button)
+            ZStack(alignment: .trailing) {
+                HStack(spacing: 10) {
+                    // Muscle-group body diagram or cardio SF symbol badge
+                    if let muscleGroup = exercise.exerciseDefinition?.muscleGroup {
+                        MuscleDiagramView(muscleGroup: muscleGroup, size: 32)
+                    } else {
+                        let iconColor = Color.secondary
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(iconColor.opacity(0.15))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: exercise.exerciseDefinition?.exerciseType.sfSymbol ?? "dumbbell")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(iconColor)
+                        }
+                    }
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(iconColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: iconSymbol)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(iconColor)
+                    Text(exercise.name)
+                        .font(.headline)
+                    Spacer()
+                    if allSetsComplete && !headerSwiped {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.title3)
+                    }
                 }
+                .offset(x: headerSwiped && onRemoveExercise != nil ? -80 : 0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: headerSwiped)
 
-                Text(exercise.name)
-                    .font(.headline)
-                Spacer()
-                if allSetsComplete {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.title3)
+                if onRemoveExercise != nil {
+                    Button(role: .destructive) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            headerSwiped = false
+                        }
+                        onRemoveExercise?()
+                    } label: {
+                        VStack(spacing: 2) {
+                            Image(systemName: "trash")
+                                .font(.subheadline.bold())
+                            Text("Remove")
+                                .font(.caption2.bold())
+                        }
+                        .foregroundStyle(.white)
+                        .frame(width: 76, height: 36)
+                        .background(.red)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .opacity(headerSwiped ? 1 : 0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: headerSwiped)
                 }
             }
+            .clipped()
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                    .onEnded { value in
+                        guard onRemoveExercise != nil else { return }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            if value.translation.width < -50 {
+                                headerSwiped = true
+                            } else if value.translation.width > 20 {
+                                headerSwiped = false
+                            }
+                        }
+                    }
+            )
 
             // MARK: - Set Grid Header
             if !sortedSets.isEmpty {

@@ -243,19 +243,19 @@ struct TemplateEditorView: View {
     // MARK: - Exercise Row
 
     private func exerciseRow(_ exercise: ExerciseTemplate) -> some View {
-        let muscleGroup = exercise.exerciseDefinition?.muscleGroup
-        let iconSymbol  = muscleGroup?.sfSymbol ?? exercise.exerciseDefinition?.exerciseType.sfSymbol ?? "dumbbell"
-        let iconColor   = muscleGroup?.color ?? Color.secondary
-
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(iconColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: iconSymbol)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(iconColor)
+                if let muscleGroup = exercise.exerciseDefinition?.muscleGroup {
+                    MuscleDiagramView(muscleGroup: muscleGroup, size: 32)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color.secondary.opacity(0.15))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: exercise.exerciseDefinition?.exerciseType.sfSymbol ?? "dumbbell")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.secondary)
+                    }
                 }
 
                 Text(exercise.name)

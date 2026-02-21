@@ -52,7 +52,7 @@ All ViewModels use `@Observable` (Observation framework), **not** `ObservableObj
 - `ActiveWorkoutViewModel` — live workout session; PR detection; manual entry mode; `saveAsTemplate()`; `uncompleteSet()`
 - `TemplateEditorViewModel` — create/edit templates with buffered fields + `exercisesModified` flag
 - `ExercisePickerViewModel` — catalog search + recently used; `createCustomExercise()` + `updateExercise()` accept `exerciseType`
-- `PRsViewModel` — computes PRs on-demand from session data (no stored PersonalRecord model)
+- `PRsViewModel` — computes display-ready PRs from `PersonalRecord` objects stored by `PersonalRecordService`
 - `YearGridViewModel` — history calendar; `prDates: Set<Date>` for PR day indicators; missed-day threshold driven by `User.targetWorkoutDaysPerWeek`
 - `TemplateListViewModel`, `WorkoutHistoryViewModel`, `WorkoutDetailViewModel`
 
@@ -140,11 +140,14 @@ There are **two different** detail views:
 
 ### Personal Records
 
-PRs are **computed on-demand** from existing `ExerciseSession`/`PerformedSet` data — there is no stored `PersonalRecord` model.
+PRs are stored as `PersonalRecord` SwiftData `@Model` objects and managed by `PersonalRecordService`.
 
-- `PRsViewModel` scans completed sessions per `ExerciseDefinition`.
-- Strength PRs: max weight (`maxWeightKg`), best session volume (`bestVolumeKg`).
-- Cardio PRs: keyed by distance in meters → best time in seconds (`CardioRecord`).
+- `PersonalRecordService` evaluates gold/silver/bronze podium records per `(ExerciseDefinition, recordType, distanceMeters)` bucket.
+- Strength record types: `.maxWeight` (highest weight + reps) and `.bestVolume` (sum of reps × weight across sets).
+- Cardio record type: `.cardioTime` keyed by distance in meters; lower duration is better.
+- `PersonalRecord.workoutSession` uses `.nullify` delete rule (no inverse declared on `WorkoutSession`) — `WorkoutHistoryViewModel.deleteSession()` manually deletes linked PRs before deleting the session, then calls `rebuildAllPRs()`.
+- `rebuildAllPRs()` deletes all PR records, **saves** (critical — avoids stale SwiftData relationship cache causing the idempotency guard to false-positive), then replays all completed sessions chronologically.
+- At most 3 records per bucket; `rerankPRs()` sorts candidates, keeps top 3, assigns medals, deletes the rest.
 - `ActiveWorkoutViewModel` caches pre-workout baselines in `prBaselines: [UUID: PRBaseline]` (marked `@ObservationIgnored`). After each set, `checkForPR()` compares against baseline and sets `latestPRAlert` if beaten.
 - `ActiveWorkoutView` observes `latestPRAlert` and shows a 3-second animated banner, then calls `viewModel.clearPRAlert()`.
 - `YearGridViewModel.prDates` marks days where a new PR weight was set (strength only); displayed as a yellow border on the calendar day cell.
@@ -193,9 +196,13 @@ SGFitness/
     User.swift                    — targetWorkoutDaysPerWeek, targetWorkoutMinutes (goals)
     WorkoutSession.swift
     WorkoutTemplate.swift
+  Models/
+    PersonalRecord.swift          — stored @Model; gold/silver/bronze per (definition, recordType, distance)
+  Services/
+    PersonalRecordService.swift   — evaluatePRs(for:) after finish; rebuildAllPRs() after session delete
   ViewModels/
     ActiveWorkoutViewModel.swift  — live session, PR detection, manual entry, saveAsTemplate, uncompleteSet
-    PRsViewModel.swift            — on-demand PR computation
+    PRsViewModel.swift            — display-ready PRs read from PersonalRecord objects
     ExercisePickerViewModel.swift — catalog + search + createCustomExercise(exerciseType:)
     TemplateEditorViewModel.swift
     YearGridViewModel.swift       — prDates: Set<Date>; missed threshold from User.targetWorkoutDaysPerWeek

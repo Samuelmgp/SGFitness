@@ -135,17 +135,19 @@ struct ExercisePickerView: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
     private func exerciseIcon(_ definition: ExerciseDefinition) -> some View {
-        let symbolName = definition.muscleGroup?.sfSymbol ?? definition.exerciseType.sfSymbol
-        let color      = definition.muscleGroup?.color ?? Color.secondary
-
-        return ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(color.opacity(0.15))
-                .frame(width: 38, height: 38)
-            Image(systemName: symbolName)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(color)
+        if let muscleGroup = definition.muscleGroup {
+            MuscleDiagramView(muscleGroup: muscleGroup, size: 38)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.15))
+                    .frame(width: 38, height: 38)
+                Image(systemName: definition.exerciseType.sfSymbol)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color.secondary)
+            }
         }
     }
 }
