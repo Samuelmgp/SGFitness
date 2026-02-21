@@ -15,7 +15,8 @@ struct ActiveWorkoutView: View {
     @State private var showingPRBanner = false
     @State private var prBannerMessage = ""
     @State private var showingManualDuration = false
-    @State private var manualDurationInput: String = "45"
+    @State private var finishHours: Int = 0
+    @State private var finishMinutes: Int = 45
     @State private var showingAddStretch = false
     @State private var newStretchName: String = ""
     @State private var newStretchDuration: String = ""
@@ -78,6 +79,8 @@ struct ActiveWorkoutView: View {
                     Menu {
                         Button("Finish Workout", systemImage: "checkmark.circle") {
                             if viewModel.isManualEntry {
+                                finishHours = 0
+                                finishMinutes = 45
                                 showingManualDuration = true
                             } else {
                                 viewModel.finishWorkout()
@@ -107,17 +110,8 @@ struct ActiveWorkoutView: View {
             .sheet(isPresented: $showingSaveAsTemplatePrompt) {
                 saveAsTemplateSheet
             }
-            .alert("Workout Duration", isPresented: $showingManualDuration) {
-                TextField("Minutes", text: $manualDurationInput)
-                    .keyboardType(.numberPad)
-                Button("Cancel", role: .cancel) {}
-                Button("Finish") {
-                    let minutes = Int(manualDurationInput) ?? 45
-                    viewModel.finishWorkout(manualDurationMinutes: minutes)
-                    dismiss()
-                }
-            } message: {
-                Text("How long was your workout? (minutes)")
+            .sheet(isPresented: $showingManualDuration) {
+                finishWorkoutSheet
             }
             .alert("Add Stretch", isPresented: $showingAddStretch) {
                 TextField("Stretch name", text: $newStretchName)
@@ -378,6 +372,48 @@ struct ActiveWorkoutView: View {
         .padding()
         .background(.fill.quaternary)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Finish Workout Sheet (manual entry)
+
+    private var finishWorkoutSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Workout Duration") {
+                    Stepper("Hours: \(finishHours)", value: $finishHours, in: 0...23)
+                    Stepper("Minutes: \(finishMinutes)", value: $finishMinutes, in: 0...59)
+                }
+
+                Section {
+                    let total = finishHours * 60 + finishMinutes
+                    if total > 0 {
+                        Text("Total: \(finishHours > 0 ? "\(finishHours)h " : "")\(finishMinutes)m")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Enter your workout duration")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Finish Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingManualDuration = false }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Finish") {
+                        let total = finishHours * 60 + finishMinutes
+                        viewModel.finishWorkout(manualDurationMinutes: total > 0 ? total : 45)
+                        showingManualDuration = false
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(finishHours == 0 && finishMinutes == 0)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Save as Template Sheet
