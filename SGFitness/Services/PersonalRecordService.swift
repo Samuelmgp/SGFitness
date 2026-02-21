@@ -52,6 +52,15 @@ final class PersonalRecordService {
             modelContext.delete(record)
         }
 
+        // Commit deletions before evaluating new PRs.
+        // Without this save, SwiftData's in-memory relationship cache still
+        // returns the deleted records when rerankPRs() reads
+        // definition.personalRecords. The idempotency guard then sees a
+        // "matching" entry for every session and returns early, preventing
+        // any new PRs from being inserted — leaving the store empty after
+        // the rebuild completes.
+        save()
+
         // Fetch all completed sessions sorted chronologically
         let sessionDescriptor = FetchDescriptor<WorkoutSession>(
             predicate: #Predicate { $0.completedAt != nil },
