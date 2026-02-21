@@ -17,6 +17,8 @@ struct ActiveWorkoutView: View {
     @State private var showingAddStretch = false
     @State private var newStretchName: String = ""
     @State private var newStretchDuration: String = ""
+    /// Index of the exercise currently swiped left to reveal its delete button.
+    @State private var swipedExerciseIndex: Int? = nil
 
     var body: some View {
         NavigationStack {
@@ -26,16 +28,8 @@ struct ActiveWorkoutView: View {
 
                 Divider()
 
-                // MARK: - Exercise Cards + Stretches
-                if viewModel.exercises.isEmpty && viewModel.stretches.isEmpty {
-                    ContentUnavailableView(
-                        "No Exercises",
-                        systemImage: "dumbbell",
-                        description: Text("Tap + to add an exercise.")
-                    )
-                } else {
-                    exerciseCardList
-                }
+                // MARK: - Stretch section (always visible) + Exercise cards
+                exerciseCardList
             }
             .overlay {
                 if viewModel.restTimerIsRunning {
@@ -220,28 +214,101 @@ struct ActiveWorkoutView: View {
     private var exerciseCardList: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                ForEach(Array(viewModel.exercises.enumerated()), id: \.element.id) { index, exercise in
-                    ExerciseCardView(
-                        exercise: exercise,
-                        exerciseIndex: index,
-                        weightUnit: viewModel.preferredWeightUnit,
-                        onCompleteSet: { set, reps, weight, durationSeconds in
-                            viewModel.completeSet(set, reps: reps, weight: weight, durationSeconds: durationSeconds)
-                        },
-                        onLogSet: { reps, weight, durationSeconds in
-                            if let duration = durationSeconds {
-                                viewModel.logSet(exerciseIndex: index, distanceMeters: reps, durationSeconds: duration)
-                            } else {
-                                viewModel.logSet(exerciseIndex: index, reps: reps, weight: weight)
-                            }
-                        }
-                    )
-                }
 
+                // Stretch section — always at the top, visible from the moment
+                // a workout starts (even before any exercises are added).
                 stretchSection
+
+                // Exercise cards, or an inline empty state when none exist yet.
+                if viewModel.exercises.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "dumbbell")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                        Text("No exercises yet")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("Tap + to add an exercise.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                } else {
+                    ForEach(Array(viewModel.exercises.enumerated()), id: \.element.id) { index, exercise in
+                        exerciseCardWithSwipeDelete(exercise: exercise, index: index)
+                    }
+                }
             }
             .padding()
         }
+    }
+
+    // MARK: - Exercise Card + Swipe-to-Delete
+
+    /// Wraps an ExerciseCardView in a ZStack that reveals a red Delete button
+    /// when the user swipes left. Swiping right (or tapping another card's swipe)
+    /// dismisses the delete button. Only one card can be in the swiped state at a time.
+    private func exerciseCardWithSwipeDelete(exercise: ExerciseSession, index: Int) -> some View {
+        let isSwiped = swipedExerciseIndex == index
+
+        return ZStack(alignment: .trailing) {
+            ExerciseCardView(
+                exercise: exercise,
+                exerciseIndex: index,
+                weightUnit: viewModel.preferredWeightUnit,
+                onCompleteSet: { set, reps, weight, durationSeconds in
+                    viewModel.completeSet(set, reps: reps, weight: weight, durationSeconds: durationSeconds)
+                },
+                onLogSet: { reps, weight, durationSeconds in
+                    if let duration = durationSeconds {
+                        viewModel.logSet(exerciseIndex: index, distanceMeters: reps, durationSeconds: duration)
+                    } else {
+                        viewModel.logSet(exerciseIndex: index, reps: reps, weight: weight)
+                    }
+                }
+            )
+            .offset(x: isSwiped ? -80 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: swipedExerciseIndex)
+
+            // Delete button — hidden until swiped left.
+            Button(role: .destructive) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    viewModel.removeExercise(at: index)
+                    swipedExerciseIndex = nil
+                }
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "trash")
+                        .font(.title3)
+                    Text("Remove")
+                        .font(.caption2.bold())
+                }
+                .foregroundStyle(.white)
+                .frame(width: 76)
+                .frame(maxHeight: .infinity)
+                .background(.red)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .opacity(isSwiped ? 1 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: swipedExerciseIndex)
+        }
+        // Clip so the card edge doesn't overflow when sliding left.
+        .clipped()
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                .onEnded { value in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        if value.translation.width < -50 {
+                            // Swipe left — reveal delete. Automatically closes any other open card.
+                            swipedExerciseIndex = index
+                        } else if value.translation.width > 20, isSwiped {
+                            // Swipe right on the same card — hide delete button.
+                            swipedExerciseIndex = nil
+                        }
+                    }
+                }
+        )
     }
 
     // MARK: - Stretch Section
