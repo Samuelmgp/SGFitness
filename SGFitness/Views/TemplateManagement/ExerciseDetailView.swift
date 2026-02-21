@@ -8,6 +8,7 @@ struct ExerciseDetailView: View {
 
     let exercise: ExerciseTemplate
     let viewModel: TemplateEditorViewModel
+    let weightUnit: WeightUnit
 
     @State private var restSeconds: String = ""
 
@@ -72,7 +73,7 @@ struct ExerciseDetailView: View {
                                 .frame(width: 36, alignment: .leading)
                             Text("\(goal.targetReps) reps")
                                 .frame(maxWidth: .infinity, alignment: .center)
-                            Text(goal.targetWeight.map { "\(Int($0)) kg" } ?? "BW")
+                            Text(goal.targetWeight.map { "\(formatted(weightUnit.fromKilograms($0))) \(weightUnit.rawValue)" } ?? "BW")
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
                         .font(.subheadline)
@@ -80,7 +81,7 @@ struct ExerciseDetailView: View {
                         .onTapGesture {
                             editingGoal = goal
                             editReps = "\(goal.targetReps)"
-                            editWeight = goal.targetWeight.map { "\(Int($0))" } ?? ""
+                            editWeight = goal.targetWeight.map { formatted(weightUnit.fromKilograms($0)) } ?? ""
                             showingEditSet = true
                         }
                     }
@@ -95,7 +96,7 @@ struct ExerciseDetailView: View {
                 Button {
                     let lastGoal = exercise.setGoals.sorted { $0.order < $1.order }.last
                     addSetReps = lastGoal.map { "\($0.targetReps)" } ?? "10"
-                    addSetWeight = lastGoal?.targetWeight.map { "\(Int($0))" } ?? ""
+                    addSetWeight = lastGoal?.targetWeight.map { formatted(weightUnit.fromKilograms($0)) } ?? ""
                     showingAddSet = true
                 } label: {
                     Label("Add Set", systemImage: "plus.circle")
@@ -129,32 +130,40 @@ struct ExerciseDetailView: View {
         .alert("Add Set Goal", isPresented: $showingAddSet) {
             TextField("Target Reps", text: $addSetReps)
                 .keyboardType(.numberPad)
-            TextField("Weight (optional)", text: $addSetWeight)
+            TextField("Weight in \(weightUnit.rawValue) (optional)", text: $addSetWeight)
                 .keyboardType(.decimalPad)
             Button("Cancel", role: .cancel) { }
             Button("Add") {
                 guard let reps = Int(addSetReps), reps > 0 else { return }
-                let weight = Double(addSetWeight)
+                let weight = Double(addSetWeight).map { weightUnit.toKilograms($0) }
                 viewModel.addSetGoal(to: exercise, reps: reps, weight: weight)
             }
         } message: {
-            Text("Enter target reps and weight for this set.")
+            Text("Enter target reps and weight (\(weightUnit.rawValue)) for this set.")
         }
         .alert("Edit Set Goal", isPresented: $showingEditSet) {
             TextField("Target Reps", text: $editReps)
                 .keyboardType(.numberPad)
-            TextField("Weight (optional)", text: $editWeight)
+            TextField("Weight in \(weightUnit.rawValue) (optional)", text: $editWeight)
                 .keyboardType(.decimalPad)
             Button("Cancel", role: .cancel) { }
             Button("Save") {
                 guard let goal = editingGoal,
                       let reps = Int(editReps), reps > 0 else { return }
                 goal.targetReps = reps
-                goal.targetWeight = Double(editWeight)
+                goal.targetWeight = Double(editWeight).map { weightUnit.toKilograms($0) }
                 try? modelContext.save()
             }
         } message: {
-            Text("Modify the target reps and weight.")
+            Text("Modify the target reps and weight (\(weightUnit.rawValue)).")
         }
+    }
+
+    // MARK: - Helpers
+
+    private func formatted(_ value: Double) -> String {
+        value.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(value))"
+            : String(format: "%.1f", value)
     }
 }

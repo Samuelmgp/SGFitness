@@ -23,6 +23,10 @@ struct OnboardingView: View {
     // Body weight as a typed string in the selected unit
     @State private var bodyWeightText: String = ""
 
+    // Workout goals
+    @State private var goalFrequencyDays: Int = 3
+    @State private var goalDurationMinutes: Int? = nil
+
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
@@ -141,6 +145,59 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal, 40)
 
+                // MARK: - Workout Goals
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "target")
+                            .foregroundStyle(.tint)
+                        Text("Workout Goals")
+                            .font(.headline)
+                        Text("(optional)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Frequency: days per week
+                    VStack(spacing: 4) {
+                        Text("Frequency")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 0) {
+                            Picker("Days per week", selection: $goalFrequencyDays) {
+                                ForEach(1...7, id: \.self) { day in
+                                    Text("\(day)").tag(day)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity)
+
+                            Text("days/week")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 80)
+                        }
+                        .frame(height: 100)
+                    }
+
+                    // Duration goal
+                    VStack(spacing: 4) {
+                        Text("Session Duration")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Picker("Session Duration", selection: $goalDurationMinutes) {
+                            Text("Not set").tag(nil as Int?)
+                            Text("20 min").tag(20 as Int?)
+                            Text("30 min").tag(30 as Int?)
+                            Text("45 min").tag(45 as Int?)
+                            Text("60 min").tag(60 as Int?)
+                            Text("75 min").tag(75 as Int?)
+                            Text("90 min").tag(90 as Int?)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+                .padding(.horizontal, 40)
+
                 // MARK: - Guidance
                 VStack(spacing: 8) {
                     Label("Start by creating a workout template", systemImage: "list.clipboard")
@@ -193,6 +250,10 @@ struct OnboardingView: View {
         if let value = Double(bodyWeightText), value > 0 {
             user.bodyWeightKg = weightUnit.toKilograms(value)
         }
+
+        // Workout goals
+        user.targetWorkoutDaysPerWeek = goalFrequencyDays
+        user.targetWorkoutMinutes = goalDurationMinutes
 
         onComplete()
     }

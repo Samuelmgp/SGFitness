@@ -22,6 +22,12 @@ final class User {
     /// User's body weight stored in kg regardless of display preference.
     var bodyWeightKg: Double?
 
+    /// Target workout frequency in days per week. Nil = no goal (calendar uses default gap of 2).
+    var targetWorkoutDaysPerWeek: Int?
+
+    /// Target workout duration in minutes. Nil = no goal (no default set on new sessions).
+    var targetWorkoutMinutes: Int?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \WorkoutTemplate.owner)
@@ -42,7 +48,9 @@ final class User {
         createdAt: Date = .now,
         preferredWeightUnit: WeightUnit = .lbs,
         heightMeters: Double? = nil,
-        bodyWeightKg: Double? = nil
+        bodyWeightKg: Double? = nil,
+        targetWorkoutDaysPerWeek: Int? = nil,
+        targetWorkoutMinutes: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -50,6 +58,8 @@ final class User {
         self.preferredWeightUnit = preferredWeightUnit
         self.heightMeters = heightMeters
         self.bodyWeightKg = bodyWeightKg
+        self.targetWorkoutDaysPerWeek = targetWorkoutDaysPerWeek
+        self.targetWorkoutMinutes = targetWorkoutMinutes
         self.workoutTemplates = []
         self.workoutSessions = []
         self.badgeAwards = []

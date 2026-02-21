@@ -5,6 +5,7 @@ struct TemplateEditorView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: TemplateEditorViewModel
+    let weightUnit: WeightUnit
     @State private var exercisePickerViewModel: ExercisePickerViewModel?
 
     // Pending exercise definition selected from picker — triggers navigation to config.
@@ -137,7 +138,7 @@ struct TemplateEditorView: View {
         .navigationTitle("Edit Template")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: ExerciseTemplate.self) { exercise in
-            ExerciseDetailView(exercise: exercise, viewModel: viewModel)
+            ExerciseDetailView(exercise: exercise, viewModel: viewModel, weightUnit: weightUnit)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -163,7 +164,7 @@ struct TemplateEditorView: View {
         }
         .navigationDestination(isPresented: $showingExerciseConfig) {
             if let definition = pendingExerciseDefinition {
-                ExerciseConfigView(definition: definition) { sets, reps, weight, restSeconds in
+                ExerciseConfigView(definition: definition, weightUnit: weightUnit) { sets, reps, weight, restSeconds in
                     viewModel.addExercise(from: definition, targetSets: sets, targetReps: reps, targetWeight: weight, restSeconds: restSeconds)
                     pendingExerciseDefinition = nil
                 }
@@ -173,34 +174,34 @@ struct TemplateEditorView: View {
         .alert("Add Set Goal", isPresented: $showingAddSetSheet) {
             TextField("Target Reps", text: $addSetReps)
                 .keyboardType(.numberPad)
-            TextField("Weight (optional)", text: $addSetWeight)
+            TextField("Weight in \(weightUnit.rawValue) (optional)", text: $addSetWeight)
                 .keyboardType(.decimalPad)
             Button("Cancel", role: .cancel) { }
             Button("Add") {
                 guard let exercise = addSetTargetExercise,
                       let reps = Int(addSetReps), reps > 0 else { return }
-                let weight = Double(addSetWeight)
+                let weight = Double(addSetWeight).map { weightUnit.toKilograms($0) }
                 viewModel.addSetGoal(to: exercise, reps: reps, weight: weight)
             }
         } message: {
-            Text("Enter target reps and weight for this set.")
+            Text("Enter target reps and weight (\(weightUnit.rawValue)) for this set.")
         }
         // Edit set goal alert
         .alert("Edit Set Goal", isPresented: $showingEditSetSheet) {
             TextField("Target Reps", text: $editSetReps)
                 .keyboardType(.numberPad)
-            TextField("Weight (optional)", text: $editSetWeight)
+            TextField("Weight in \(weightUnit.rawValue) (optional)", text: $editSetWeight)
                 .keyboardType(.decimalPad)
             Button("Cancel", role: .cancel) { }
             Button("Save") {
                 guard let goal = editingSetGoal,
                       let reps = Int(editSetReps), reps > 0 else { return }
                 goal.targetReps = reps
-                goal.targetWeight = Double(editSetWeight)
+                goal.targetWeight = Double(editSetWeight).map { weightUnit.toKilograms($0) }
                 try? modelContext.save()
             }
         } message: {
-            Text("Modify the target reps and weight.")
+            Text("Modify the target reps and weight (\(weightUnit.rawValue)).")
         }
         // Rest time configuration alert
         .alert("Rest Time", isPresented: $showingRestTimeSheet) {
@@ -242,11 +243,20 @@ struct TemplateEditorView: View {
     // MARK: - Exercise Row
 
     private func exerciseRow(_ exercise: ExerciseTemplate) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: iconForMuscleGroup(exercise.exerciseDefinition?.muscleGroup))
-                    .foregroundStyle(.tint)
-                    .frame(width: 24)
+        let muscleGroup = exercise.exerciseDefinition?.muscleGroup
+        let iconSymbol  = muscleGroup?.sfSymbol ?? exercise.exerciseDefinition?.exerciseType.sfSymbol ?? "dumbbell"
+        let iconColor   = muscleGroup?.color ?? Color.secondary
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(iconColor.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: iconSymbol)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
 
                 Text(exercise.name)
                     .font(.headline)
@@ -293,9 +303,4 @@ struct TemplateEditorView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Helpers
-
-    private func iconForMuscleGroup(_ group: MuscleGroup?) -> String {
-        group?.sfSymbol ?? "dumbbell"
-    }
 }

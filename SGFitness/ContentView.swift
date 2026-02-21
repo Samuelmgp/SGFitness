@@ -61,6 +61,9 @@ struct ContentView: View {
                 },
                 onLogWorkout: { name, date in
                     logWorkout(user: user, name: name, startedAt: date)
+                },
+                onLogWorkoutFromTemplate: { template, name, date in
+                    logWorkoutFromTemplate(user: user, template: template, name: name, startedAt: date)
                 }
             )
             .tag(0)
@@ -126,6 +129,11 @@ struct ContentView: View {
         activeWorkoutVM = vm
     }
 
+    private func logWorkoutFromTemplate(user: User, template: WorkoutTemplate, name: String, startedAt: Date) {
+        let vm = ActiveWorkoutViewModel(modelContext: modelContext, user: user)
+        vm.startManualEntryFromTemplate(template, name: name, startedAt: startedAt)
+        activeWorkoutVM = vm
+    }
 
     // MARK: - Delete Account
 

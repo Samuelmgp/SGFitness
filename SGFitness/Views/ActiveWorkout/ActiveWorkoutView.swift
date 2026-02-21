@@ -270,7 +270,9 @@ struct ActiveWorkoutView: View {
                     } else {
                         viewModel.logSet(exerciseIndex: index, reps: reps, weight: weight)
                     }
-                }
+                },
+                onRemoveSet: { set in viewModel.removeSet(set) },
+                onDeselectSet: { set in viewModel.uncompleteSet(set) }
             )
             .offset(x: isSwiped ? -80 : 0)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: swipedExerciseIndex)

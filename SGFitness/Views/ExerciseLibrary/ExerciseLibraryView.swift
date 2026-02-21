@@ -152,20 +152,38 @@ struct ExerciseLibraryView: View {
     // MARK: - Row
 
     private func exerciseRow(_ definition: ExerciseDefinition) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(definition.name)
-                .font(.body)
+        HStack(spacing: 12) {
+            exerciseIcon(definition)
 
-            HStack(spacing: 8) {
-                if let muscleGroup = definition.muscleGroup {
-                    Text(muscleGroup.rawValue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(definition.name)
+                    .font(.body)
+
+                HStack(spacing: 6) {
+                    if let muscleGroup = definition.muscleGroup {
+                        Text(muscleGroup.rawValue)
+                    }
+                    if let equipment = definition.equipment {
+                        Text(equipment)
+                    }
                 }
-                if let equipment = definition.equipment {
-                    Text(equipment)
-                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func exerciseIcon(_ definition: ExerciseDefinition) -> some View {
+        let symbolName = definition.muscleGroup?.sfSymbol ?? definition.exerciseType.sfSymbol
+        let color      = definition.muscleGroup?.color ?? Color.secondary
+
+        return ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.15))
+                .frame(width: 38, height: 38)
+            Image(systemName: symbolName)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(color)
         }
     }
 }

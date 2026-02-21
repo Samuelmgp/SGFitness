@@ -13,6 +13,10 @@ struct ExerciseCardView: View {
     let onCompleteSet: (_ set: PerformedSet, _ reps: Int, _ weight: Double?, _ durationSeconds: Int?) -> Void
     /// weight parameter is already in kg (converted by this view before calling)
     let onLogSet: (_ reps: Int, _ weight: Double?, _ durationSeconds: Int?) -> Void
+    /// Called when user swipes to delete a set. Nil = swipe-to-delete hidden.
+    let onRemoveSet: ((PerformedSet) -> Void)?
+    /// Called when user taps the checkmark of an already-completed set to un-complete it.
+    let onDeselectSet: ((PerformedSet) -> Void)?
 
     @State private var showingAddSet = false
     @State private var newSetReps: String = "10"
@@ -34,7 +38,22 @@ struct ExerciseCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // MARK: - Exercise Header
-            HStack {
+            HStack(spacing: 10) {
+                // Muscle-group or exercise-type icon badge
+                let iconSymbol = exercise.exerciseDefinition?.muscleGroup?.sfSymbol
+                    ?? exercise.exerciseDefinition?.exerciseType.sfSymbol
+                    ?? "dumbbell"
+                let iconColor  = exercise.exerciseDefinition?.muscleGroup?.color ?? Color.secondary
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(iconColor.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: iconSymbol)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
+
                 Text(exercise.name)
                     .font(.headline)
                 Spacer()
@@ -70,7 +89,9 @@ struct ExerciseCardView: View {
                     weightUnit: weightUnit,
                     onComplete: { reps, weight, durationSeconds in
                         onCompleteSet(set, reps, weight, durationSeconds)
-                    }
+                    },
+                    onDeselect: onDeselectSet.map { handler in { handler(set) } },
+                    onRemove: onRemoveSet.map { handler in { handler(set) } }
                 )
             }
 
@@ -83,7 +104,6 @@ struct ExerciseCardView: View {
                 } else {
                     let last = sortedSets.last
                     newSetReps = last.map { "\($0.reps)" } ?? "10"
-                    // Pre-fill in user's display unit
                     newSetWeight = last?.weight.map { displayWeight($0) } ?? ""
                 }
                 showingAddSet = true
@@ -116,7 +136,6 @@ struct ExerciseCardView: View {
                 Button("Log") {
                     let reps = Int(newSetReps) ?? 0
                     guard reps > 0 else { return }
-                    // Convert entered display-unit value → kg for storage
                     let weightKg = Double(newSetWeight).map { weightUnit.toKilograms($0) }
                     onLogSet(reps, weightKg, nil)
                 }
@@ -126,7 +145,6 @@ struct ExerciseCardView: View {
         }
     }
 
-    // Display a stored-kg value in the user's preferred unit
     private func displayWeight(_ kg: Double) -> String {
         let v = weightUnit.fromKilograms(kg)
         return v.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(v))" : String(format: "%.1f", v)
@@ -145,20 +163,107 @@ struct ExerciseCardView: View {
 }
 
 // MARK: - SetCircleRow
+//
+// Displays a single set row with:
+//   - Tap circle: complete an incomplete set, or de-select a completed set.
+//   - Long-press: edit values. Title changes based on whether the set is completed.
+//   - Swipe left (when onRemove is provided): reveals a red Delete button.
 
 struct SetCircleRow: View {
 
     let set: PerformedSet
     let isCardio: Bool
     let weightUnit: WeightUnit
+    /// Called when tapping an incomplete set's circle (or long-press → "Complete").
     let onComplete: (_ reps: Int, _ weight: Double?, _ durationSeconds: Int?) -> Void
+    /// Called when tapping a completed set's circle. Nil = tapping completed circle is a no-op.
+    let onDeselect: (() -> Void)?
+    /// Called after confirming swipe-to-delete. Nil = swipe gesture not active.
+    let onRemove: (() -> Void)?
 
     @State private var showingEdit = false
     @State private var editReps: String = ""
     @State private var editWeight: String = ""
     @State private var editDuration: String = ""
+    /// Captures whether the set was completed at the moment of long-press,
+    /// so the alert title/button text is stable while the alert is shown.
+    @State private var editingWasCompleted = false
+    @State private var swiped = false
 
     var body: some View {
+        ZStack(alignment: .trailing) {
+            rowContent
+                .offset(x: swiped && onRemove != nil ? -72 : 0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: swiped)
+
+            // Delete button — only visible when swiped and onRemove is provided.
+            if onRemove != nil {
+                Button(role: .destructive) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        swiped = false
+                    }
+                    onRemove?()
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.white)
+                        .font(.subheadline.bold())
+                        .frame(width: 68)
+                        .frame(maxHeight: .infinity)
+                        .background(.red)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .opacity(swiped ? 1 : 0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: swiped)
+            }
+        }
+        .clipped()
+        // Horizontal swipe to reveal/hide delete button.
+        // The gesture is always registered but only acts when onRemove is provided,
+        // so it doesn't interfere with vertical scrolling when delete is disabled.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                .onEnded { value in
+                    guard onRemove != nil else { return }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        if value.translation.width < -40 {
+                            swiped = true
+                        } else if value.translation.width > 20 {
+                            swiped = false
+                        }
+                    }
+                }
+        )
+        .alert(
+            editingWasCompleted ? "Edit Set" : "Edit & Complete",
+            isPresented: $showingEdit
+        ) {
+            if isCardio {
+                TextField("Distance (m)", text: $editReps).keyboardType(.numberPad)
+                TextField("Duration (mm:ss)", text: $editDuration)
+                Button("Cancel", role: .cancel) {}
+                Button(editingWasCompleted ? "Save" : "Complete") {
+                    let reps = Int(editReps) ?? set.reps
+                    let duration = parseDuration(editDuration) ?? set.durationSeconds
+                    onComplete(reps, nil, duration)
+                }
+            } else {
+                TextField("Reps", text: $editReps).keyboardType(.numberPad)
+                TextField("Weight (\(weightUnit.displayName), optional)", text: $editWeight).keyboardType(.decimalPad)
+                Button("Cancel", role: .cancel) {}
+                Button(editingWasCompleted ? "Save" : "Complete") {
+                    let reps = Int(editReps) ?? set.reps
+                    let weightKg = Double(editWeight).map { weightUnit.toKilograms($0) }
+                    onComplete(reps, weightKg, nil)
+                }
+            }
+        } message: {
+            Text(editingWasCompleted ? "Adjust the recorded values." : "Adjust values before completing.")
+        }
+    }
+
+    // MARK: - Row Content
+
+    private var rowContent: some View {
         HStack {
             Text("\(set.order + 1)")
                 .font(.subheadline.monospacedDigit())
@@ -181,12 +286,18 @@ struct SetCircleRow: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
 
+            // Complete / de-select circle button.
             Button {
-                if set.isCompleted { return }
-                if isCardio {
-                    onComplete(set.reps, nil, set.durationSeconds)
+                if set.isCompleted {
+                    // Dismiss swipe state first if open.
+                    withAnimation { swiped = false }
+                    onDeselect?()
                 } else {
-                    onComplete(set.reps, set.weight, nil)
+                    if isCardio {
+                        onComplete(set.reps, nil, set.durationSeconds)
+                    } else {
+                        onComplete(set.reps, set.weight, nil)
+                    }
                 }
             } label: {
                 Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -200,45 +311,22 @@ struct SetCircleRow: View {
         .opacity(set.isCompleted ? 0.7 : 1.0)
         .contentShape(Rectangle())
         .onLongPressGesture {
-            guard !set.isCompleted else { return }
+            // Capture completed state before alert is shown.
+            editingWasCompleted = set.isCompleted
             if isCardio {
                 editReps = "\(set.reps)"
                 let dur = formatDuration(set.durationSeconds)
                 editDuration = dur == "--:--" ? "" : dur
             } else {
                 editReps = "\(set.reps)"
-                // Show in user's display unit
                 editWeight = set.weight.map { displayWeight($0) } ?? ""
             }
             showingEdit = true
         }
-        .alert("Edit & Complete", isPresented: $showingEdit) {
-            if isCardio {
-                TextField("Distance (m)", text: $editReps).keyboardType(.numberPad)
-                TextField("Duration (mm:ss)", text: $editDuration)
-                Button("Cancel", role: .cancel) {}
-                Button("Complete") {
-                    let reps = Int(editReps) ?? set.reps
-                    let duration = parseDuration(editDuration) ?? set.durationSeconds
-                    onComplete(reps, nil, duration)
-                }
-            } else {
-                TextField("Reps", text: $editReps).keyboardType(.numberPad)
-                TextField("Weight (\(weightUnit.displayName), optional)", text: $editWeight).keyboardType(.decimalPad)
-                Button("Cancel", role: .cancel) {}
-                Button("Complete") {
-                    let reps = Int(editReps) ?? set.reps
-                    // Convert display-unit input → kg for storage
-                    let weightKg = Double(editWeight).map { weightUnit.toKilograms($0) }
-                    onComplete(reps, weightKg, nil)
-                }
-            }
-        } message: {
-            Text("Adjust values before completing.")
-        }
     }
 
-    /// Converts a stored-kg value to the display unit for rendering.
+    // MARK: - Helpers
+
     private func formatWeight(_ kg: Double?) -> String {
         guard let kg else { return "BW" }
         let v = weightUnit.fromKilograms(kg)

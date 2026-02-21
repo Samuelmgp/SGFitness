@@ -99,7 +99,7 @@ struct TemplateListView: View {
         .listStyle(.plain)
         .navigationDestination(for: WorkoutTemplate.self) { template in
             let editorVM = TemplateEditorViewModel(modelContext: modelContext, template: template)
-            TemplateEditorView(viewModel: editorVM)
+            TemplateEditorView(viewModel: editorVM, weightUnit: viewModel.user.preferredWeightUnit)
         }
     }
 

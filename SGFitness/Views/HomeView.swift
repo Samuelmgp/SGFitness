@@ -9,12 +9,11 @@ struct HomeView: View {
     let onStartFromTemplate: (WorkoutTemplate) -> Void
     let onStartAdHoc: () -> Void
     let onLogWorkout: (String, Date) -> Void
+    let onLogWorkoutFromTemplate: (WorkoutTemplate, String, Date) -> Void
 
     @State private var showingTemplatePicker = false
     @State private var pendingTemplate: WorkoutTemplate?
     @State private var showingLogSetup = false
-    @State private var logWorkoutName = ""
-    @State private var logWorkoutDate = Date.now
     @State private var todayCompletion: Double = 0
     @State private var todaySessions: [WorkoutSession] = []
 
@@ -59,8 +58,6 @@ struct HomeView: View {
                         .controlSize(.large)
 
                         Button {
-                            logWorkoutName = ""
-                            logWorkoutDate = .now
                             showingLogSetup = true
                         } label: {
                             Label("Log a Workout", systemImage: "square.and.pencil")
@@ -78,31 +75,30 @@ struct HomeView: View {
             }
             .navigationTitle("SGFitness")
             .onAppear { fetchTodayData() }
+            // MARK: - Log Workout Setup Sheet
             .sheet(isPresented: $showingLogSetup) {
-                LogWorkoutSetupSheet(
-                    name: $logWorkoutName,
-                    date: $logWorkoutDate
-                ) {
+                LogWorkoutSetupSheet(modelContext: modelContext) { name, date, template in
                     showingLogSetup = false
-                    let name = logWorkoutName.trimmingCharacters(in: .whitespaces)
-                    let finalName = name.isEmpty ? "Workout Log" : name
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        onLogWorkout(finalName, logWorkoutDate)
+                        if let tmpl = template {
+                            onLogWorkoutFromTemplate(tmpl, name, date)
+                        } else {
+                            onLogWorkout(name, date)
+                        }
                     }
                 }
             }
+            // MARK: - Template Picker Sheet (Record Workout)
             .sheet(isPresented: $showingTemplatePicker, onDismiss: {
                 if let template = pendingTemplate {
                     pendingTemplate = nil
-                    // Delay to let the sheet dismiss animation finish before
-                    // ContentView presents the fullScreenCover.
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         onStartFromTemplate(template)
                     }
                 }
             }) {
                 NavigationStack {
-                    TemplatePickerSheet(
+                    RecordWorkoutTemplatePickerSheet(
                         modelContext: modelContext,
                         onSelect: { template in
                             pendingTemplate = template
@@ -119,12 +115,10 @@ struct HomeView: View {
     private var completionRing: some View {
         VStack(spacing: 12) {
             ZStack {
-                // Background arc
                 SemiCircleArc()
                     .stroke(Color(.systemGray5), style: StrokeStyle(lineWidth: 16, lineCap: .round))
                     .frame(width: 180, height: 100)
 
-                // Progress arc
                 SemiCircleArc()
                     .trim(from: 0, to: todayCompletion)
                     .stroke(
@@ -134,7 +128,6 @@ struct HomeView: View {
                     .frame(width: 180, height: 100)
                     .animation(.easeInOut(duration: 0.6), value: todayCompletion)
 
-                // Percentage text
                 Text(completionText)
                     .font(.system(size: 36, weight: .bold, design: .rounded))
                     .foregroundStyle(todayCompletion > 0 ? .primary : .secondary)
@@ -154,9 +147,7 @@ struct HomeView: View {
     }
 
     private var statusMessage: String {
-        if todaySessions.isEmpty {
-            return "No workouts logged today"
-        }
+        if todaySessions.isEmpty { return "No workouts logged today" }
         let count = todaySessions.count
         return "\(count) workout\(count == 1 ? "" : "s") logged today"
     }
@@ -226,9 +217,149 @@ private struct SemiCircleArc: Shape {
     }
 }
 
-// MARK: - Template Picker Sheet
+// MARK: - Log Workout Setup Sheet
+// Single sheet with internal NavigationStack.
+// Root view shows an optional template selector + date (+ name if no template).
+// Tapping "From Template" pushes the template picker within the same sheet.
+// Selecting a template pops back to the root form with the template pre-filled.
 
-private struct TemplatePickerSheet: View {
+private struct LogWorkoutSetupSheet: View {
+
+    let modelContext: ModelContext
+    /// Called when user taps Continue. Parent owns the dismiss + delay.
+    let onConfirm: (_ name: String, _ date: Date, _ template: WorkoutTemplate?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var date: Date = .now
+    @State private var selectedTemplate: WorkoutTemplate? = nil
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                // Template selector
+                Section {
+                    if let template = selectedTemplate {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(template.name)
+                                    .font(.headline)
+                                Text("\(template.exercises.count) exercise\(template.exercises.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Remove") {
+                                selectedTemplate = nil
+                            }
+                            .foregroundStyle(.red)
+                        }
+                    } else {
+                        NavigationLink {
+                            LogTemplatePickerView(modelContext: modelContext) { template in
+                                selectedTemplate = template
+                            }
+                        } label: {
+                            Label("From Template", systemImage: "list.clipboard")
+                        }
+                    }
+                } header: {
+                    Text("Template (Optional)")
+                }
+
+                // Workout details
+                Section("Details") {
+                    if selectedTemplate == nil {
+                        TextField("Workout name", text: $name)
+                    }
+                    DatePicker(
+                        "Date",
+                        selection: $date,
+                        in: ...Date.now,
+                        displayedComponents: .date
+                    )
+                }
+            }
+            .navigationTitle("Log a Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Continue") {
+                        let finalName: String
+                        if let template = selectedTemplate {
+                            finalName = template.name
+                        } else {
+                            let trimmed = name.trimmingCharacters(in: .whitespaces)
+                            finalName = trimmed.isEmpty ? "Workout Log" : trimmed
+                        }
+                        onConfirm(finalName, date, selectedTemplate)
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+// MARK: - Log Template Picker View
+// Pushed within LogWorkoutSetupSheet's NavigationStack.
+// Uses environment dismiss to pop back to the setup form after selection.
+
+private struct LogTemplatePickerView: View {
+    let modelContext: ModelContext
+    let onSelect: (WorkoutTemplate) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var templates: [WorkoutTemplate] = []
+
+    var body: some View {
+        Group {
+            if templates.isEmpty {
+                ContentUnavailableView(
+                    "No Templates",
+                    systemImage: "list.clipboard",
+                    description: Text("Create a template first in the Templates tab.")
+                )
+            } else {
+                List(templates, id: \.id) { template in
+                    Button {
+                        onSelect(template)
+                        dismiss() // pop back to setup form
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(template.name)
+                                .font(.headline)
+                            Text("\(template.exercises.count) exercise\(template.exercises.count == 1 ? "" : "s")")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .tint(.primary)
+                }
+                .listStyle(.plain)
+            }
+        }
+        .navigationTitle("Choose Template")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            let descriptor = FetchDescriptor<WorkoutTemplate>(
+                sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+            )
+            templates = (try? modelContext.fetch(descriptor)) ?? []
+        }
+    }
+}
+
+// MARK: - Record Workout Template Picker Sheet
+// Used by the "Record Workout" button. Separate from LogTemplatePickerView
+// because it needs a Cancel button (it's the root of its own NavigationStack sheet).
+
+private struct RecordWorkoutTemplatePickerSheet: View {
 
     let modelContext: ModelContext
     let onSelect: (WorkoutTemplate) -> Void
@@ -276,44 +407,5 @@ private struct TemplatePickerSheet: View {
             )
             templates = (try? modelContext.fetch(descriptor)) ?? []
         }
-    }
-}
-
-// MARK: - Log Workout Setup Sheet
-
-private struct LogWorkoutSetupSheet: View {
-
-    @Binding var name: String
-    @Binding var date: Date
-    let onConfirm: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Workout Details") {
-                    TextField("Workout name", text: $name)
-                    DatePicker(
-                        "Date",
-                        selection: $date,
-                        in: ...Date.now,
-                        displayedComponents: .date
-                    )
-                }
-            }
-            .navigationTitle("Log a Workout")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Continue") { onConfirm() }
-                        .fontWeight(.semibold)
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 }

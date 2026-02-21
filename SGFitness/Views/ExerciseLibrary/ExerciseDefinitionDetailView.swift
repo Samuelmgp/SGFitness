@@ -21,7 +21,7 @@ struct ExerciseDefinitionDetailView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         if let muscleGroup = definition.muscleGroup {
-                            ExerciseChip(text: muscleGroup.rawValue, systemImage: "figure.strengthtraining.traditional")
+                            ExerciseChip(text: muscleGroup.rawValue, systemImage: muscleGroup.sfSymbol)
                         }
                         if let equipment = definition.equipment {
                             ExerciseChip(text: equipment, systemImage: "dumbbell")

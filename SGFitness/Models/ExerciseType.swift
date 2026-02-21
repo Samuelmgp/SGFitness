@@ -22,7 +22,7 @@ enum ExerciseType: String, Codable, CaseIterable {
     /// SF Symbol name for this exercise type.
     var sfSymbol: String {
         switch self {
-        case .strength: return "bolt.fill"
+        case .strength: return "dumbbell.fill"
         case .cardio:   return "figure.run"
         }
     }

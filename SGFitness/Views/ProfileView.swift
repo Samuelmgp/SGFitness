@@ -13,12 +13,17 @@ struct ProfileView: View {
 
     @State private var showingDeleteConfirmation = false
     @State private var showingMeasurementsEdit = false
+    @State private var showingGoalsEdit = false
 
     // Measurements edit state
     @State private var editHeightCm: Int = 170
     @State private var editHeightFeet: Int = 5
     @State private var editHeightInches: Int = 9
     @State private var editBodyWeightText: String = ""
+
+    // Goals edit state
+    @State private var editGoalFrequencyDays: Int = 3
+    @State private var editGoalDurationMinutes: Int? = nil
 
     var body: some View {
         NavigationStack {
@@ -67,6 +72,35 @@ struct ProfileView: View {
                         Text("lbs").tag(WeightUnit.lbs)
                     } label: {
                         Label("Weight Unit", systemImage: "scalemass")
+                    }
+                }
+
+                // MARK: - Goals
+                Section("Goals") {
+                    HStack {
+                        Label("Weekly Target", systemImage: "calendar")
+                        Spacer()
+                        Text(user.targetWorkoutDaysPerWeek.map { "\($0) days/week" } ?? "Not set")
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        editGoalFrequencyDays = user.targetWorkoutDaysPerWeek ?? 3
+                        editGoalDurationMinutes = user.targetWorkoutMinutes
+                        showingGoalsEdit = true
+                    }
+
+                    HStack {
+                        Label("Session Duration", systemImage: "timer")
+                        Spacer()
+                        Text(user.targetWorkoutMinutes.map { "\($0) min" } ?? "Not set")
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        editGoalFrequencyDays = user.targetWorkoutDaysPerWeek ?? 3
+                        editGoalDurationMinutes = user.targetWorkoutMinutes
+                        showingGoalsEdit = true
                     }
                 }
 
@@ -140,6 +174,9 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .sheet(isPresented: $showingMeasurementsEdit) {
                 measurementsEditSheet
+            }
+            .sheet(isPresented: $showingGoalsEdit) {
+                goalsEditSheet
             }
             .confirmationDialog(
                 "Delete Account",
@@ -316,5 +353,85 @@ struct ProfileView: View {
             user.bodyWeightKg = user.preferredWeightUnit.toKilograms(value)
         }
         try? modelContext.save()
+    }
+
+    // MARK: - Goals Edit Sheet
+
+    @ViewBuilder
+    private var goalsEditSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 28) {
+                    Spacer(minLength: 8)
+
+                    // Weekly frequency
+                    VStack(spacing: 8) {
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(.tint)
+                            Text("Weekly Target")
+                                .font(.headline)
+                        }
+
+                        HStack(spacing: 0) {
+                            Picker("Days per week", selection: $editGoalFrequencyDays) {
+                                ForEach(1...7, id: \.self) { day in
+                                    Text("\(day)").tag(day)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity)
+
+                            Text("days/week")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 80)
+                        }
+                        .frame(height: 120)
+                    }
+                    .padding(.horizontal, 40)
+
+                    // Session duration
+                    VStack(spacing: 8) {
+                        HStack {
+                            Image(systemName: "timer")
+                                .foregroundStyle(.tint)
+                            Text("Session Duration")
+                                .font(.headline)
+                        }
+
+                        Picker("Session Duration", selection: $editGoalDurationMinutes) {
+                            Text("Not set").tag(nil as Int?)
+                            Text("20 min").tag(20 as Int?)
+                            Text("30 min").tag(30 as Int?)
+                            Text("45 min").tag(45 as Int?)
+                            Text("60 min").tag(60 as Int?)
+                            Text("75 min").tag(75 as Int?)
+                            Text("90 min").tag(90 as Int?)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .padding(.horizontal, 40)
+
+                    Spacer(minLength: 8)
+                }
+            }
+            .navigationTitle("Workout Goals")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingGoalsEdit = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        user.targetWorkoutDaysPerWeek = editGoalFrequencyDays
+                        user.targetWorkoutMinutes = editGoalDurationMinutes
+                        try? modelContext.save()
+                        showingGoalsEdit = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }

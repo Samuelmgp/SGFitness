@@ -85,6 +85,14 @@ final class YearGridViewModel {
             calendar.startOfDay(for: $0.startedAt)
         }
 
+        // Compute missed threshold from user's frequency goal.
+        // e.g. 5x/week → ceil(7/5) = 2 days gap before "missed"
+        //      3x/week → ceil(7/3) = 3 days gap before "missed"
+        //      1x/week → ceil(7/1) = 7 days gap before "missed"
+        let userDescriptor = FetchDescriptor<User>()
+        let freq = (try? modelContext.fetch(userDescriptor))?.first?.targetWorkoutDaysPerWeek
+        let missedThreshold = freq.map { Int(ceil(7.0 / Double($0))) } ?? 2
+
         // Walk every day in the year up to today. O(365) — fast.
         let today = calendar.startOfDay(for: .now)
         var currentDay = yearStart
@@ -98,7 +106,7 @@ final class YearGridViewModel {
                 // No session and no status yet: compute missed vs rest.
                 if let last = lastSessionDay {
                     let gap = calendar.dateComponents([.day], from: last, to: day).day ?? 0
-                    data[day] = gap >= 2 ? .missed : .restDay
+                    data[day] = gap >= missedThreshold ? .missed : .restDay
                 } else {
                     data[day] = .restDay
                 }

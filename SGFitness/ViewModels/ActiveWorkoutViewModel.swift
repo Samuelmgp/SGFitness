@@ -270,7 +270,8 @@ final class ActiveWorkoutViewModel: Identifiable {
         }
 
         // Copy the template's target duration so the timer ring knows the goal.
-        session.targetDurationMinutes = template.targetDurationMinutes
+        // Fall back to the user's default session duration goal if the template has none.
+        session.targetDurationMinutes = template.targetDurationMinutes ?? user.targetWorkoutMinutes
 
         self.session = session
 
@@ -295,6 +296,7 @@ final class ActiveWorkoutViewModel: Identifiable {
             name: name,
             user: user
         )
+        session.targetDurationMinutes = user.targetWorkoutMinutes
         modelContext.insert(session)
 
         self.session = session
@@ -310,11 +312,78 @@ final class ActiveWorkoutViewModel: Identifiable {
     ///     date when the user is logging a workout after the fact.
     func startManualEntry(name: String, startedAt: Date = .now) {
         let session = WorkoutSession(name: name, startedAt: startedAt, user: user)
+        session.targetDurationMinutes = user.targetWorkoutMinutes
         modelContext.insert(session)
         self.session = session
         isManualEntry = true
         persistChanges()
         // Timer intentionally not started — user will supply duration on finish.
+    }
+
+    /// Start a manual-entry workout pre-populated from a template's exercise structure.
+    /// Copies exercises, set goals, and stretches exactly like startFromTemplate(), but
+    /// does NOT start the elapsed timer and does NOT load PR baselines (manual entry).
+    /// - Parameters:
+    ///   - template: The template whose structure to copy.
+    ///   - name: Display name for the session (may differ from the template's name).
+    ///   - startedAt: When the workout took place.
+    func startManualEntryFromTemplate(_ template: WorkoutTemplate, name: String, startedAt: Date) {
+        let session = WorkoutSession(
+            name: name,
+            notes: template.notes,
+            startedAt: startedAt,
+            user: user,
+            template: template
+        )
+        modelContext.insert(session)
+
+        let sortedExercises = template.exercises.sorted { $0.order < $1.order }
+        for templateExercise in sortedExercises {
+            let exerciseSession = ExerciseSession(
+                name: templateExercise.name,
+                notes: templateExercise.notes,
+                order: templateExercise.order,
+                restSeconds: templateExercise.restSeconds,
+                workoutSession: session,
+                exerciseTemplate: templateExercise
+            )
+            exerciseSession.exerciseDefinition = templateExercise.exerciseDefinition
+            modelContext.insert(exerciseSession)
+
+            let sortedGoals = templateExercise.setGoals.sorted { $0.order < $1.order }
+            for goal in sortedGoals {
+                // All sets start as completed in a manual-entry-from-template session.
+                // The user can de-select any set they didn't actually perform.
+                let performedSet = PerformedSet(
+                    order: goal.order,
+                    reps: goal.targetReps,
+                    weight: goal.targetWeight,
+                    isCompleted: true,
+                    completedAt: startedAt,
+                    exerciseSession: exerciseSession
+                )
+                modelContext.insert(performedSet)
+            }
+        }
+
+        let sortedStretchGoals = template.stretches.sorted { $0.order < $1.order }
+        for goal in sortedStretchGoals {
+            let stretchEntry = StretchEntry(
+                name: goal.name,
+                durationSeconds: goal.targetDurationSeconds,
+                order: goal.order,
+                workoutSession: session
+            )
+            modelContext.insert(stretchEntry)
+        }
+
+        session.targetDurationMinutes = template.targetDurationMinutes ?? user.targetWorkoutMinutes
+
+        self.session = session
+        isManualEntry = true
+        persistChanges()
+        // Timer intentionally not started — user will supply duration on finish.
+        // PR baselines are not loaded — no live PR detection in manual entry.
     }
 
     // MARK: - Exercise Management
@@ -542,6 +611,17 @@ final class ActiveWorkoutViewModel: Identifiable {
             survivingSet.order = newOrder
         }
 
+        session?.updatedAt = .now
+        refreshCounter += 1
+    }
+
+    /// Mark a completed set as incomplete (de-select it).
+    ///
+    /// Used in manual-entry-from-template mode where all sets start as
+    /// pre-completed and the user un-checks sets they didn't actually perform.
+    func uncompleteSet(_ set: PerformedSet) {
+        set.isCompleted = false
+        set.completedAt = nil
         session?.updatedAt = .now
     }
 

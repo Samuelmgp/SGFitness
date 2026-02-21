@@ -3,6 +3,7 @@ import SwiftUI
 struct ExerciseConfigView: View {
 
     let definition: ExerciseDefinition
+    let weightUnit: WeightUnit
     let onAdd: (_ sets: Int, _ reps: Int, _ weight: Double?, _ restSeconds: Int?) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -33,7 +34,10 @@ struct ExerciseConfigView: View {
                     TextField("Optional", text: $weightText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
-                        .frame(width: 100)
+                        .frame(width: 80)
+                    Text(weightUnit.rawValue)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, alignment: .leading)
                 }
                 Stepper("Rest: \(restSeconds)s", value: $restSeconds, in: 0...300, step: 15)
             }
@@ -43,7 +47,7 @@ struct ExerciseConfigView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add to Template") {
-                    let weight = Double(weightText)
+                    let weight = Double(weightText).map { weightUnit.toKilograms($0) }
                     let rest = restSeconds > 0 ? restSeconds : nil
                     onAdd(sets, reps, weight, rest)
                     dismiss()
