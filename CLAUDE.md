@@ -39,6 +39,8 @@ WorkoutSession >── WorkoutTemplate (nullify — deleting template preserves 
 - `PerformedSet.durationSeconds: Int?` — nil for strength sets; for cardio: `reps` = distance in meters, `durationSeconds` = elapsed time.
 - `SetGoal.targetDurationSeconds: Int?` — mirrors PerformedSet for template cardio goals.
 - `ExerciseDefinition.muscleGroup` — nil for cardio exercises (no muscle group association).
+- `User.heightMeters: Double?` — stored in metres regardless of display preference.
+- `User.bodyWeightKg: Double?` — stored in kg regardless of display preference.
 
 ### ViewModels (`SGFitness/ViewModels/`)
 
@@ -72,11 +74,13 @@ All ViewModels use `@Observable` (Observation framework), **not** `ObservableObj
 2. "Start from Scratch" → `startAdHoc()` (live timer)
 3. "Log a Workout" → `logWorkout()` (manual entry, no timer)
 
-**ActiveWorkoutView** — ellipsis menu: Finish Workout / Save as Template / Discard Workout. In manual entry mode (`viewModel.isManualEntry`), the timer shows `--:--` and Finish Workout prompts for duration in minutes.
+**ActiveWorkoutView** — ellipsis menu: Finish Workout / Save as Template / Discard Workout. In manual entry mode (`viewModel.isManualEntry`), the timer shows `--:--` and Finish Workout opens a half-sheet with side-by-side Hours/Minutes wheel pickers. Save as Template also opens a half-sheet with the same wheel picker for duration.
 
 **ExerciseCardView / SetCircleRow** — accept `weightUnit: WeightUnit` parameter. Always pass `viewModel.preferredWeightUnit` from `ActiveWorkoutViewModel`. Display values are converted from kg using `fromKilograms()`; user input is converted to kg using `toKilograms()` before passing to the VM.
 
-**ProfileView** — has "Library" section with links to Personal Records and Exercise Library.
+**ProfileView** — "Settings" section (name, weight unit), "Body Measurements" section (height + body weight display with edit sheet using wheel pickers), "Library" section (Personal Records, Exercise Library), "Stats" section.
+
+**OnboardingView** — first-launch sheet. Collects name, weight unit, height (metric: single cm wheel 100–250; imperial: ft 4–7 + in 0–11 side-by-side wheels), and body weight (TextField). All optional except name. Saves `heightMeters` in metres and `bodyWeightKg` in kg to `User`.
 
 ### Naming Clash — ExerciseDetailView
 
@@ -157,5 +161,6 @@ SGFitness/
     WorkoutHistory/
       YearGridView.swift         — yellow border on PR days
       YearGridViewModel.swift
-    ProfileView.swift            — Library section: Personal Records + Exercise Library
+    ProfileView.swift            — Settings, Body Measurements (edit sheet), Stats, Library sections
+    OnboardingView.swift         — first-launch: name, unit, height (wheel pickers), body weight
 ```
