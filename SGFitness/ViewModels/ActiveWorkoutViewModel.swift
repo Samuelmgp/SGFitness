@@ -859,9 +859,11 @@ final class ActiveWorkoutViewModel: Identifiable {
         // Max weight check
         if let weight = weight, weight > 0 {
             if baseline.maxWeightKg == nil || weight > baseline.maxWeightKg! {
+                let unit = preferredWeightUnit
+                let displayWeight = unit.fromKilograms(weight)
                 latestPRAlert = PRAlert(
                     exerciseName: exercise.name,
-                    metric: "Max weight: \(formatWeightForAlert(weight)) kg"
+                    metric: "Max weight: \(formatWeightForAlert(displayWeight)) \(unit.rawValue)"
                 )
                 baseline.maxWeightKg = weight
                 prBaselines[defId] = baseline
@@ -876,9 +878,11 @@ final class ActiveWorkoutViewModel: Identifiable {
             return total + Double(set.reps) * w
         }
         if sessionVolume > 0, (baseline.bestVolumeKg == nil || sessionVolume > baseline.bestVolumeKg!) {
+            let unit = preferredWeightUnit
+            let displayVolume = unit.fromKilograms(sessionVolume)
             latestPRAlert = PRAlert(
                 exerciseName: exercise.name,
-                metric: "Best volume: \(formatWeightForAlert(sessionVolume)) kg"
+                metric: "Best volume: \(formatWeightForAlert(displayVolume)) \(unit.rawValue)"
             )
             baseline.bestVolumeKg = sessionVolume
             prBaselines[defId] = baseline

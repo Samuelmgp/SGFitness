@@ -7,6 +7,8 @@ import SwiftData
 
 struct PersonalRecordsView: View {
 
+    var weightUnit: WeightUnit = .kg
+
     @Environment(\.modelContext) private var modelContext
     @State private var prResults: [(ExerciseDefinition, ExercisePRs)] = []
     @State private var pickerViewModel: ExercisePickerViewModel?
@@ -40,7 +42,7 @@ struct PersonalRecordsView: View {
                         ForEach(groupPRs, id: \.0.id) { definition, prs in
                             if let vm = pickerViewModel {
                                 NavigationLink {
-                                    ExerciseDefinitionDetailView(definition: definition, viewModel: vm)
+                                    ExerciseDefinitionDetailView(definition: definition, viewModel: vm, weightUnit: weightUnit)
                                 } label: {
                                     prRow(definition: definition, prs: prs)
                                 }
@@ -100,8 +102,9 @@ struct PersonalRecordsView: View {
             }
             return "No records"
         } else {
-            if let weight = prs.maxWeightKg, let reps = prs.maxWeightReps {
-                return "Max: \(formatWeight(weight))kg × \(reps)"
+            if let weightKg = prs.maxWeightKg, let reps = prs.maxWeightReps {
+                let converted = weightUnit.fromKilograms(weightKg)
+                return "Max: \(formatWeight(converted))\(weightUnit.rawValue) × \(reps)"
             }
             return "No records"
         }

@@ -45,6 +45,11 @@ final class WorkoutDetailViewModel {
         session.template?.name
     }
 
+    /// User's preferred weight display unit, derived from the session owner.
+    var preferredWeightUnit: WeightUnit {
+        session.user?.preferredWeightUnit ?? .kg
+    }
+
     init(modelContext: ModelContext, session: WorkoutSession) {
         self.modelContext = modelContext
         self.session = session
@@ -57,6 +62,53 @@ final class WorkoutDetailViewModel {
     func updateSet(_ set: PerformedSet, reps: Int, weight: Double?) {
         set.reps = reps
         set.weight = weight
+        session.updatedAt = .now
+    }
+
+    /// Append a completed set to the given exercise.
+    func addSet(to exercise: ExerciseSession, reps: Int, weight: Double?) {
+        let nextOrder = exercise.performedSets.map(\.order).max().map { $0 + 1 } ?? 0
+        let set = PerformedSet(
+            order: nextOrder,
+            reps: reps,
+            weight: weight,
+            isCompleted: true,
+            completedAt: .now,
+            exerciseSession: exercise
+        )
+        modelContext.insert(set)
+        session.updatedAt = .now
+    }
+
+    /// Delete a set and recompute contiguous order on survivors.
+    func removeSet(_ set: PerformedSet) {
+        guard let exercise = set.exerciseSession else { return }
+        let remaining = exercise.performedSets
+            .filter { $0.id != set.id }
+            .sorted { $0.order < $1.order }
+        modelContext.delete(set)
+        for (newOrder, s) in remaining.enumerated() { s.order = newOrder }
+        session.updatedAt = .now
+    }
+
+    /// Add an exercise from the catalog to this session.
+    func addExercise(from definition: ExerciseDefinition) {
+        let nextOrder = exercises.last.map { $0.order + 1 } ?? 0
+        let exerciseSession = ExerciseSession(
+            name: definition.name,
+            order: nextOrder,
+            workoutSession: session
+        )
+        exerciseSession.exerciseDefinition = definition
+        modelContext.insert(exerciseSession)
+        session.updatedAt = .now
+    }
+
+    /// Delete an exercise and all its sets, recomputing order on survivors.
+    func removeExercise(_ exercise: ExerciseSession) {
+        let remaining = exercises.filter { $0.id != exercise.id }
+        modelContext.delete(exercise)
+        for (newOrder, ex) in remaining.enumerated() { ex.order = newOrder }
         session.updatedAt = .now
     }
 

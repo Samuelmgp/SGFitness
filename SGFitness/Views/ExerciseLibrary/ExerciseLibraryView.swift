@@ -7,6 +7,8 @@ import SwiftData
 
 struct ExerciseLibraryView: View {
 
+    var weightUnit: WeightUnit = .kg
+
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel: ExercisePickerViewModel?
 
@@ -96,7 +98,7 @@ struct ExerciseLibraryView: View {
                     Section(group.rawValue) {
                         ForEach(exercises, id: \.id) { definition in
                             NavigationLink {
-                                ExerciseDefinitionDetailView(definition: definition, viewModel: viewModel)
+                                ExerciseDefinitionDetailView(definition: definition, viewModel: viewModel, weightUnit: weightUnit)
                             } label: {
                                 exerciseRow(definition)
                             }
@@ -117,7 +119,7 @@ struct ExerciseLibraryView: View {
                 Section("Other") {
                     ForEach(uncategorized, id: \.id) { definition in
                         NavigationLink {
-                            ExerciseDefinitionDetailView(definition: definition, viewModel: viewModel)
+                            ExerciseDefinitionDetailView(definition: definition, viewModel: viewModel, weightUnit: weightUnit)
                         } label: {
                             exerciseRow(definition)
                         }

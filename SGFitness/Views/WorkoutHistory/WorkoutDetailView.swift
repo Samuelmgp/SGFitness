@@ -7,14 +7,33 @@ import SwiftData
 // Displays a single completed workout session with full drill-down.
 // Shows summary stats (duration, total volume, template origin),
 // the full exercise list with performed sets, and supports an edit mode
-// for correcting past data.
+// for correcting past data (tappable sets, add/delete sets, add exercises).
 //
 // Binds to: WorkoutDetailViewModel
 
 struct WorkoutDetailView: View {
 
+    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: WorkoutDetailViewModel
+
+    // Template save alert
     @State private var showingSavedAsTemplateAlert = false
+
+    // Exercise picker (add exercise)
+    @State private var showingExercisePicker = false
+    @State private var exercisePickerVM: ExercisePickerViewModel?
+
+    // Add set alert
+    @State private var showingAddSet = false
+    @State private var addSetExercise: ExerciseSession?
+    @State private var addSetReps: String = "10"
+    @State private var addSetWeight: String = ""
+
+    // Edit set alert
+    @State private var showingEditSet = false
+    @State private var editingSet: PerformedSet?
+    @State private var editSetReps: String = ""
+    @State private var editSetWeight: String = ""
 
     var body: some View {
         ScrollView {
@@ -26,7 +45,6 @@ struct WorkoutDetailView: View {
                 Divider()
 
                 // MARK: - Exercise List
-                // Binds to: viewModel.exercises (sorted by order)
                 ForEach(viewModel.exercises, id: \.id) { exercise in
                     exerciseSection(exercise)
                 }
@@ -41,9 +59,22 @@ struct WorkoutDetailView: View {
         .navigationTitle(viewModel.session.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // Add Exercise button — only in edit mode
+            if viewModel.isEditing {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        if exercisePickerVM == nil {
+                            exercisePickerVM = ExercisePickerViewModel(modelContext: modelContext)
+                        }
+                        showingExercisePicker = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 if viewModel.isEditing {
-                    // In edit mode — a prominent Done button saves and exits.
                     Button("Done") {
                         viewModel.save()
                         viewModel.toggleEditing()
@@ -69,13 +100,49 @@ struct WorkoutDetailView: View {
         } message: {
             Text("\"\(viewModel.session.name)\" has been added to your Templates.")
         }
+        .alert("Add Set", isPresented: $showingAddSet) {
+            TextField("Reps", text: $addSetReps)
+                .keyboardType(.numberPad)
+            TextField("Weight (\(viewModel.preferredWeightUnit.rawValue), optional)", text: $addSetWeight)
+                .keyboardType(.decimalPad)
+            Button("Cancel", role: .cancel) {}
+            Button("Add") {
+                guard let exercise = addSetExercise,
+                      let reps = Int(addSetReps), reps > 0 else { return }
+                let weightKg = Double(addSetWeight).map { viewModel.preferredWeightUnit.toKilograms($0) }
+                viewModel.addSet(to: exercise, reps: reps, weight: weightKg)
+            }
+        } message: {
+            Text("Enter reps and weight for this set.")
+        }
+        .alert("Edit Set", isPresented: $showingEditSet) {
+            TextField("Reps", text: $editSetReps)
+                .keyboardType(.numberPad)
+            TextField("Weight (\(viewModel.preferredWeightUnit.rawValue), optional)", text: $editSetWeight)
+                .keyboardType(.decimalPad)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                guard let set = editingSet,
+                      let reps = Int(editSetReps), reps > 0 else { return }
+                let weightKg = Double(editSetWeight).map { viewModel.preferredWeightUnit.toKilograms($0) }
+                viewModel.updateSet(set, reps: reps, weight: weightKg)
+            }
+        } message: {
+            Text("Edit reps and weight for this set.")
+        }
+        .sheet(isPresented: $showingExercisePicker) {
+            if let pickerVM = exercisePickerVM {
+                ExercisePickerView(viewModel: pickerVM) { definition in
+                    viewModel.addExercise(from: definition)
+                }
+            }
+        }
     }
 
     // MARK: - Summary Header
 
     private var summaryHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Binds to: viewModel.templateName
             if let templateName = viewModel.templateName {
                 Label(templateName, systemImage: "doc.text")
                     .font(.subheadline)
@@ -83,26 +150,20 @@ struct WorkoutDetailView: View {
             }
 
             HStack(spacing: 24) {
-                // Binds to: viewModel.duration
                 statItem(
                     label: "Duration",
                     value: formatDuration(viewModel.duration)
                 )
-
-                // Binds to: viewModel.totalVolume
                 statItem(
                     label: "Volume",
                     value: formatVolume(viewModel.totalVolume)
                 )
-
-                // Binds to: viewModel.exercises.count
                 statItem(
                     label: "Exercises",
                     value: "\(viewModel.exercises.count)"
                 )
             }
 
-            // Binds to: viewModel.session.notes
             if !viewModel.session.notes.isEmpty {
                 Text(viewModel.session.notes)
                     .font(.subheadline)
@@ -115,41 +176,82 @@ struct WorkoutDetailView: View {
 
     private func exerciseSection(_ exercise: ExerciseSession) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Exercise header
             HStack {
-                // Binds to: exercise.name
                 Text(exercise.name)
                     .font(.headline)
 
                 Spacer()
 
-                // Binds to: exercise.effort
-                if let effort = exercise.effort {
+                if let effort = exercise.effort, !viewModel.isEditing {
                     Text("Effort: \(effort)/10")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                if viewModel.isEditing {
+                    Button(role: .destructive) {
+                        viewModel.removeExercise(exercise)
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
-            // Binds to: exercise.performedSets (sorted by order)
+            // Set rows
             let sortedSets = exercise.performedSets.sorted { $0.order < $1.order }
             ForEach(sortedSets, id: \.id) { set in
                 HStack {
                     Text("Set \(set.order + 1)")
                         .frame(width: 50, alignment: .leading)
 
-                    // Binds to: set.reps
                     Text("\(set.reps) reps")
                         .frame(maxWidth: .infinity, alignment: .center)
 
-                    // Binds to: set.weight
-                    Text(set.weight.map { "\(Int($0)) kg" } ?? "BW")
+                    Text(weightDisplayText(set.weight))
                         .frame(maxWidth: .infinity, alignment: .center)
 
-                    // Binds to: set.isCompleted
-                    Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "xmark.circle")
-                        .foregroundStyle(set.isCompleted ? .green : .red)
+                    if viewModel.isEditing {
+                        Button(role: .destructive) {
+                            viewModel.removeSet(set)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "xmark.circle")
+                            .foregroundStyle(set.isCompleted ? .green : .red)
+                    }
                 }
                 .font(.subheadline)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard viewModel.isEditing else { return }
+                    editingSet = set
+                    editSetReps = "\(set.reps)"
+                    editSetWeight = set.weight.map { formatWeightForInput($0) } ?? ""
+                    showingEditSet = true
+                }
+            }
+
+            // Add Set button — edit mode only
+            if viewModel.isEditing {
+                Button {
+                    addSetExercise = exercise
+                    let lastSet = sortedSets.last
+                    addSetReps = lastSet.map { "\($0.reps)" } ?? "10"
+                    addSetWeight = lastSet?.weight.map { formatWeightForInput($0) } ?? ""
+                    showingAddSet = true
+                } label: {
+                    Label("Add Set", systemImage: "plus.circle")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+                .padding(.top, 2)
             }
 
             Divider()
@@ -196,6 +298,26 @@ struct WorkoutDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// Converts a stored kg weight to the user's preferred unit for display.
+    private func weightDisplayText(_ weightKg: Double?) -> String {
+        guard let weightKg else { return "BW" }
+        let unit = viewModel.preferredWeightUnit
+        let converted = unit.fromKilograms(weightKg)
+        let formatted = converted == Double(Int(converted))
+            ? "\(Int(converted))"
+            : String(format: "%.1f", converted)
+        return "\(formatted) \(unit.rawValue)"
+    }
+
+    /// Formats a stored kg weight as a clean number string for pre-filling an input field.
+    private func formatWeightForInput(_ weightKg: Double) -> String {
+        let unit = viewModel.preferredWeightUnit
+        let converted = unit.fromKilograms(weightKg)
+        return converted == Double(Int(converted))
+            ? "\(Int(converted))"
+            : String(format: "%.1f", converted)
     }
 
     private func formatDuration(_ interval: TimeInterval) -> String {
