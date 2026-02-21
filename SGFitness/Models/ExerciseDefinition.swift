@@ -30,7 +30,14 @@ final class ExerciseDefinition {
     var equipment: String?
 
     /// Whether this is a strength or cardio exercise.
-    var exerciseType: ExerciseType = ExerciseType.strength
+    /// Raw string backing — SwiftData cannot persist custom Codable enums directly.
+    var exerciseTypeRaw: String = ExerciseType.strength.rawValue
+
+    /// Typed accessor for the persisted exercise type.
+    var exerciseType: ExerciseType {
+        get { ExerciseType(rawValue: exerciseTypeRaw) ?? .strength }
+        set { exerciseTypeRaw = newValue.rawValue }
+    }
 
     var createdAt: Date
 
@@ -65,7 +72,7 @@ final class ExerciseDefinition {
         self.name = name
         self.muscleGroup = muscleGroup
         self.equipment = equipment
-        self.exerciseType = exerciseType
+        self.exerciseTypeRaw = exerciseType.rawValue
         self.createdAt = createdAt
         self.exerciseTemplates = []
         self.exerciseSessions = []

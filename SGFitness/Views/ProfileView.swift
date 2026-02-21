@@ -96,7 +96,7 @@ struct ProfileView: View {
                 }
 
                 // MARK: - Danger Zone
-                if let onDeleteAccount {
+                if onDeleteAccount != nil {
                     Section {
                         Button(role: .destructive) {
                             showingDeleteConfirmation = true
