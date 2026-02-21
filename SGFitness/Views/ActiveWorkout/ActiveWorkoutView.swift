@@ -6,10 +6,9 @@ struct ActiveWorkoutView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: ActiveWorkoutViewModel
-    @State private var showingExercisePicker = false
+    @State private var exercisePickerViewModel: ExercisePickerViewModel?
     @State private var showingFinishConfirm = false
     @State private var showingDiscardConfirm = false
-    @State private var exercisePickerViewModel: ExercisePickerViewModel?
     @State private var showingPRBanner = false
     @State private var prBannerMessage = ""
     @State private var showingManualDuration = false
@@ -65,10 +64,9 @@ struct ActiveWorkoutView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        if exercisePickerViewModel == nil {
-                            exercisePickerViewModel = ExercisePickerViewModel(modelContext: modelContext)
-                        }
-                        showingExercisePicker = true
+                        let vm = ExercisePickerViewModel(modelContext: modelContext)
+                        vm.fetchDefinitions()
+                        exercisePickerViewModel = vm
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -95,13 +93,11 @@ struct ActiveWorkoutView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingExercisePicker) {
-                if let picker = exercisePickerViewModel {
-                    ExercisePickerView(viewModel: picker, onSelect: { definition in
-                        viewModel.addExercise(from: definition)
-                        showingExercisePicker = false
-                    })
-                }
+            .sheet(item: $exercisePickerViewModel) { picker in
+                ExercisePickerView(viewModel: picker, onSelect: { definition in
+                    viewModel.addExercise(from: definition)
+                    exercisePickerViewModel = nil
+                })
             }
             .alert("Workout Duration", isPresented: $showingManualDuration) {
                 TextField("Minutes", text: $manualDurationInput)

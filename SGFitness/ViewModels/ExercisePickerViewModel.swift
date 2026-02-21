@@ -8,8 +8,9 @@ import Observation
 // adding an exercise. Supports creating custom exercises.
 
 @Observable
-final class ExercisePickerViewModel {
+final class ExercisePickerViewModel: Identifiable {
 
+    let id = UUID()
     private let modelContext: ModelContext
 
     /// Full exercise catalog, sorted alphabetically.
@@ -29,7 +30,6 @@ final class ExercisePickerViewModel {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        fetchDefinitions()
     }
 
     func fetchDefinitions() {
