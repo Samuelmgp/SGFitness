@@ -378,22 +378,36 @@ struct ActiveWorkoutView: View {
 
     private var finishWorkoutSheet: some View {
         NavigationStack {
-            Form {
-                Section("Workout Duration") {
-                    Stepper("Hours: \(finishHours)", value: $finishHours, in: 0...23)
-                    Stepper("Minutes: \(finishMinutes)", value: $finishMinutes, in: 0...59)
-                }
+            VStack(spacing: 4) {
+                Text("How long was your workout?")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
 
-                Section {
-                    let total = finishHours * 60 + finishMinutes
-                    if total > 0 {
-                        Text("Total: \(finishHours > 0 ? "\(finishHours)h " : "")\(finishMinutes)m")
+                HStack(spacing: 0) {
+                    VStack(spacing: 2) {
+                        Picker("Hours", selection: $finishHours) {
+                            ForEach(0...23, id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("hours")
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
-                    } else {
-                        Text("Enter your workout duration")
+                    }
+
+                    VStack(spacing: 2) {
+                        Picker("Minutes", selection: $finishMinutes) {
+                            ForEach(0...59, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("minutes")
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .padding(.horizontal)
             }
             .navigationTitle("Finish Workout")
             .navigationBarTitleDisplayMode(.inline)
@@ -420,22 +434,36 @@ struct ActiveWorkoutView: View {
 
     private var saveAsTemplateSheet: some View {
         NavigationStack {
-            Form {
-                Section("Typical Workout Duration") {
-                    Stepper("Hours: \(templateSaveHours)", value: $templateSaveHours, in: 0...23)
-                    Stepper("Minutes: \(templateSaveMinutes)", value: $templateSaveMinutes, in: 0...59)
-                }
+            VStack(spacing: 4) {
+                Text("Set a typical duration for this template")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
 
-                Section {
-                    let total = templateSaveHours * 60 + templateSaveMinutes
-                    if total > 0 {
-                        Text("Total: \(templateSaveHours > 0 ? "\(templateSaveHours)h " : "")\(templateSaveMinutes)m")
+                HStack(spacing: 0) {
+                    VStack(spacing: 2) {
+                        Picker("Hours", selection: $templateSaveHours) {
+                            ForEach(0...23, id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("hours")
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
-                    } else {
-                        Text("No duration set")
+                    }
+
+                    VStack(spacing: 2) {
+                        Picker("Minutes", selection: $templateSaveMinutes) {
+                            ForEach(0...59, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("minutes")
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .padding(.horizontal)
             }
             .navigationTitle("Save as Template")
             .navigationBarTitleDisplayMode(.inline)
