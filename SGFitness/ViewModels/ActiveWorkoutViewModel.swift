@@ -295,8 +295,12 @@ final class ActiveWorkoutViewModel: Identifiable {
 
     /// Start a manual-entry workout: same as ad-hoc but the timer does not run.
     /// The user provides the final duration when calling finishWorkout(manualDurationMinutes:).
-    func startManualEntry(name: String) {
-        let session = WorkoutSession(name: name, user: user)
+    /// - Parameters:
+    ///   - name: Display name for the session.
+    ///   - startedAt: When the workout took place. Defaults to now; pass a past
+    ///     date when the user is logging a workout after the fact.
+    func startManualEntry(name: String, startedAt: Date = .now) {
+        let session = WorkoutSession(name: name, startedAt: startedAt, user: user)
         modelContext.insert(session)
         self.session = session
         isManualEntry = true

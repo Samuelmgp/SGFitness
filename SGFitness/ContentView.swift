@@ -59,8 +59,8 @@ struct ContentView: View {
                 onStartAdHoc: {
                     startAdHoc(user: user)
                 },
-                onLogWorkout: {
-                    logWorkout(user: user)
+                onLogWorkout: { name, date in
+                    logWorkout(user: user, name: name, startedAt: date)
                 }
             )
             .tag(0)
@@ -120,9 +120,9 @@ struct ContentView: View {
         activeWorkoutVM = vm
     }
 
-    private func logWorkout(user: User) {
+    private func logWorkout(user: User, name: String, startedAt: Date) {
         let vm = ActiveWorkoutViewModel(modelContext: modelContext, user: user)
-        vm.startManualEntry(name: "Workout Log")
+        vm.startManualEntry(name: name, startedAt: startedAt)
         activeWorkoutVM = vm
     }
 

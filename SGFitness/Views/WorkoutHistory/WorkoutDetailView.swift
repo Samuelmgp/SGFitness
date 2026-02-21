@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - WorkoutDetailView
 // Target folder: Views/WorkoutHistory/
@@ -13,6 +14,7 @@ import SwiftUI
 struct WorkoutDetailView: View {
 
     @Bindable var viewModel: WorkoutDetailViewModel
+    @State private var showingSavedAsTemplateAlert = false
 
     var body: some View {
         ScrollView {
@@ -39,16 +41,33 @@ struct WorkoutDetailView: View {
         .navigationTitle(viewModel.session.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // MARK: - Edit Toggle
-            // Binds to: viewModel.isEditing
             ToolbarItem(placement: .primaryAction) {
-                Button(viewModel.isEditing ? "Done" : "Edit") {
-                    if viewModel.isEditing {
+                if viewModel.isEditing {
+                    // In edit mode — a prominent Done button saves and exits.
+                    Button("Done") {
                         viewModel.save()
+                        viewModel.toggleEditing()
                     }
-                    viewModel.toggleEditing()
+                    .fontWeight(.semibold)
+                } else {
+                    Menu {
+                        Button("Edit", systemImage: "pencil") {
+                            viewModel.toggleEditing()
+                        }
+                        Button("Save as Template", systemImage: "square.and.arrow.down") {
+                            viewModel.saveAsTemplate()
+                            showingSavedAsTemplateAlert = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             }
+        }
+        .alert("Saved as Template", isPresented: $showingSavedAsTemplateAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("\"\(viewModel.session.name)\" has been added to your Templates.")
         }
     }
 

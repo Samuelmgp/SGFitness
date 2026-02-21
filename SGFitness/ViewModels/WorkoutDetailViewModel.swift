@@ -78,4 +78,46 @@ final class WorkoutDetailViewModel {
             print("[WorkoutDetailViewModel] Failed to save: \(error)")
         }
     }
+
+    /// Create a new WorkoutTemplate from this session's exercises and sets.
+    /// The template owner is derived from the session's user relationship.
+    func saveAsTemplate() {
+        guard let owner = session.user else { return }
+
+        let template = WorkoutTemplate(name: session.name, owner: owner)
+        modelContext.insert(template)
+
+        for (i, exerciseSession) in exercises.enumerated() {
+            let exerciseTemplate = ExerciseTemplate(
+                name: exerciseSession.name,
+                order: i,
+                workoutTemplate: template
+            )
+            exerciseTemplate.exerciseDefinition = exerciseSession.exerciseDefinition
+            exerciseTemplate.restSeconds = exerciseSession.restSeconds
+            modelContext.insert(exerciseTemplate)
+
+            let completedSets = exerciseSession.performedSets
+                .filter(\.isCompleted)
+                .sorted { $0.order < $1.order }
+
+            for (j, set) in completedSets.enumerated() {
+                let goal = SetGoal(order: j, targetReps: set.reps, exerciseTemplate: exerciseTemplate)
+                goal.targetWeight = set.weight
+                modelContext.insert(goal)
+            }
+        }
+
+        for (i, stretchEntry) in stretches.enumerated() {
+            let stretchGoal = StretchGoal(
+                name: stretchEntry.name,
+                targetDurationSeconds: stretchEntry.durationSeconds,
+                order: i,
+                workoutTemplate: template
+            )
+            modelContext.insert(stretchGoal)
+        }
+
+        save()
+    }
 }

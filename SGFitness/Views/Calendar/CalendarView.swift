@@ -189,7 +189,12 @@ private struct DayCell: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(cellBackground)
 
-            if isToday {
+            // Workout-type border: blue=cardio, purple=strength, gradient=both.
+            typeBorder
+
+            // Today indicator — only shown when there is no workout data so the
+            // type border takes visual priority on active days.
+            if isToday && data == nil {
                 RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(.primary, lineWidth: 1.5)
             }
@@ -219,6 +224,31 @@ private struct DayCell: View {
     }
 
     // MARK: - Helpers
+
+    /// Coloured border indicating workout type for the day.
+    @ViewBuilder
+    private var typeBorder: some View {
+        if let data {
+            if data.hasCardio && !data.muscleGroups.isEmpty {
+                // Mixed day — gradient from blue (cardio) to purple (strength).
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        lineWidth: 2
+                    )
+            } else if data.hasCardio {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(.blue, lineWidth: 2)
+            } else if !data.muscleGroups.isEmpty {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(.purple, lineWidth: 2)
+            }
+        }
+    }
 
     private var cellBackground: Color {
         guard let status = data?.dominantStatus else {
