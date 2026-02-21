@@ -120,6 +120,15 @@ final class ActiveWorkoutViewModel: Identifiable {
     /// and clears it after showing the banner.
     private(set) var latestPRAlert: PRAlert?
 
+    // MARK: - Refresh Trigger
+    //
+    // SwiftData relationship mutations (inserting/deleting child objects) do not
+    // reliably fire @Observable notifications on the parent ViewModel because the
+    // change is on the child's relationship, not a direct property of this object.
+    // Incrementing this counter forces any view that reads it to re-render.
+
+    var refreshCounter: Int = 0
+
     // MARK: - User Preferences
 
     /// The user's preferred weight display unit. Read by the view layer for conversions.
@@ -330,6 +339,7 @@ final class ActiveWorkoutViewModel: Identifiable {
         modelContext.insert(exerciseSession)
 
         session.updatedAt = .now
+        refreshCounter += 1
 
         // Load pre-workout baseline for live PR detection.
         loadBaseline(for: exerciseSession)
@@ -367,6 +377,7 @@ final class ActiveWorkoutViewModel: Identifiable {
         }
 
         session.updatedAt = .now
+        refreshCounter += 1
     }
 
     /// Move an exercise from one display position to another.
@@ -746,10 +757,12 @@ final class ActiveWorkoutViewModel: Identifiable {
     }
 
     /// Save the current workout's exercises as a new template.
-    func saveAsTemplate() {
+    /// - Parameter targetDurationMinutes: Optional target duration in minutes to store on the template.
+    func saveAsTemplate(targetDurationMinutes: Int? = nil) {
         guard let session else { return }
 
         let template = WorkoutTemplate(name: session.name, owner: user)
+        template.targetDurationMinutes = targetDurationMinutes
         modelContext.insert(template)
 
         for (i, exerciseSession) in exercises.enumerated() {

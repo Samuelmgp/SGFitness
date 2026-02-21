@@ -9,6 +9,9 @@ struct ActiveWorkoutView: View {
     @State private var exercisePickerViewModel: ExercisePickerViewModel?
     @State private var showingFinishConfirm = false
     @State private var showingDiscardConfirm = false
+    @State private var showingSaveAsTemplatePrompt = false
+    @State private var templateSaveHours: Int = 0
+    @State private var templateSaveMinutes: Int = 45
     @State private var showingPRBanner = false
     @State private var prBannerMessage = ""
     @State private var showingManualDuration = false
@@ -82,7 +85,9 @@ struct ActiveWorkoutView: View {
                             }
                         }
                         Button("Save as Template", systemImage: "square.and.arrow.down") {
-                            viewModel.saveAsTemplate()
+                            templateSaveHours = 0
+                            templateSaveMinutes = 45
+                            showingSaveAsTemplatePrompt = true
                         }
                         Button("Discard Workout", systemImage: "trash", role: .destructive) {
                             viewModel.discardWorkout()
@@ -98,6 +103,9 @@ struct ActiveWorkoutView: View {
                     viewModel.addExercise(from: definition)
                     exercisePickerViewModel = nil
                 })
+            }
+            .sheet(isPresented: $showingSaveAsTemplatePrompt) {
+                saveAsTemplateSheet
             }
             .alert("Workout Duration", isPresented: $showingManualDuration) {
                 TextField("Minutes", text: $manualDurationInput)
@@ -216,6 +224,10 @@ struct ActiveWorkoutView: View {
                 // Stretch section — always at the top, visible from the moment
                 // a workout starts (even before any exercises are added).
                 stretchSection
+
+                // Reading refreshCounter establishes an @Observable subscription so
+                // the list re-renders when exercises are added or removed.
+                let _ = viewModel.refreshCounter
 
                 // Exercise cards, or an inline empty state when none exist yet.
                 if viewModel.exercises.isEmpty {
@@ -366,6 +378,46 @@ struct ActiveWorkoutView: View {
         .padding()
         .background(.fill.quaternary)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Save as Template Sheet
+
+    private var saveAsTemplateSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Typical Workout Duration") {
+                    Stepper("Hours: \(templateSaveHours)", value: $templateSaveHours, in: 0...23)
+                    Stepper("Minutes: \(templateSaveMinutes)", value: $templateSaveMinutes, in: 0...59)
+                }
+
+                Section {
+                    let total = templateSaveHours * 60 + templateSaveMinutes
+                    if total > 0 {
+                        Text("Total: \(templateSaveHours > 0 ? "\(templateSaveHours)h " : "")\(templateSaveMinutes)m")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No duration set")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Save as Template")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingSaveAsTemplatePrompt = false }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Save") {
+                        let total = templateSaveHours * 60 + templateSaveMinutes
+                        viewModel.saveAsTemplate(targetDurationMinutes: total > 0 ? total : nil)
+                        showingSaveAsTemplatePrompt = false
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Helpers
