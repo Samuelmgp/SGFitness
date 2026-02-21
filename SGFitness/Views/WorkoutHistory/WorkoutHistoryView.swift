@@ -35,6 +35,15 @@ struct WorkoutHistoryView: View {
             }
             .navigationTitle("History")
             .searchable(text: $viewModel.searchText, prompt: "Search workouts")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink {
+                        CalendarView()
+                    } label: {
+                        Image(systemName: "calendar")
+                    }
+                }
+            }
             .onAppear {
                 if yearGridVM == nil {
                     yearGridVM = YearGridViewModel(modelContext: modelContext)

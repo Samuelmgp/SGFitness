@@ -717,8 +717,9 @@ final class ActiveWorkoutViewModel: Identifiable {
         // If the app crashes after this point, the workout is preserved.
         persistChanges()
 
-        // Evaluate and store personal records for this session.
+        // Evaluate and store personal records, then calendar status.
         PersonalRecordService(modelContext: modelContext).evaluatePRs(for: session)
+        CalendarComputationService(modelContext: modelContext).evaluateSession(session)
     }
 
     /// Finish a manual-entry workout with a user-supplied duration.
@@ -735,8 +736,9 @@ final class ActiveWorkoutViewModel: Identifiable {
         stopRestTimer()
         persistChanges()
 
-        // Evaluate and store personal records for this session.
+        // Evaluate and store personal records, then calendar status.
         PersonalRecordService(modelContext: modelContext).evaluatePRs(for: session)
+        CalendarComputationService(modelContext: modelContext).evaluateSession(session)
     }
 
     /// Save the current workout's exercises as a new template.

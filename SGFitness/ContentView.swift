@@ -173,6 +173,14 @@ struct ContentView: View {
                 if let prRecords = try? modelContext.fetch(prCheck), prRecords.isEmpty {
                     PersonalRecordService(modelContext: modelContext).rebuildAllPRs()
                 }
+                // One-time migration: populate workoutStatusRaw / hasPRs on all
+                // existing sessions if none have been stamped yet.
+                let statusCheck = FetchDescriptor<WorkoutSession>(
+                    predicate: #Predicate { !$0.workoutStatusRaw.isEmpty }
+                )
+                if let stamped = try? modelContext.fetch(statusCheck), stamped.isEmpty {
+                    CalendarComputationService(modelContext: modelContext).rebuildAll()
+                }
             } else {
                 let newUser = User(name: "Athlete")
                 modelContext.insert(newUser)

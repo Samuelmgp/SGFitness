@@ -26,8 +26,6 @@ struct YearGridView: View {
                 }
 
                 Spacer()
-
-                // Legend
                 legendView
             }
 
@@ -38,7 +36,7 @@ struct YearGridView: View {
                         VStack(spacing: cellSpacing) {
                             ForEach(daysInWeek(from: weekStart), id: \.self) { day in
                                 let dayStart = calendar.startOfDay(for: day)
-                                let status = viewModel.cellData[dayStart] ?? .none
+                                let status = viewModel.cellData[dayStart] ?? .restDay
                                 let isPRDay = viewModel.prDates.contains(dayStart)
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(colorForStatus(status))
@@ -66,9 +64,10 @@ struct YearGridView: View {
 
     private var legendView: some View {
         HStack(spacing: 4) {
-            legendDot(.green, label: "Done")
+            legendDot(.green,  label: "Met")
             legendDot(.yellow, label: "Partial")
-            legendDot(.red, label: "Skipped")
+            legendDot(.red,    label: "Missed")
+            legendDot(.purple, label: "Exceeded")
         }
         .font(.caption2)
     }
@@ -110,8 +109,9 @@ struct YearGridView: View {
         components.day = 1
         guard let yearStart = calendar.date(from: components) else { return [] }
 
-        // Find the start of the week containing Jan 1
-        let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: yearStart))!
+        let weekStart = calendar.date(from: calendar.dateComponents(
+            [.yearForWeekOfYear, .weekOfYear], from: yearStart
+        ))!
 
         var weeks: [Date] = []
         var current = weekStart
@@ -126,22 +126,22 @@ struct YearGridView: View {
             weeks.append(current)
             current = calendar.date(byAdding: .weekOfYear, value: 1, to: current)!
         }
-
         return weeks
     }
 
     private func daysInWeek(from weekStart: Date) -> [Date] {
-        (0..<7).compactMap { offset in
-            calendar.date(byAdding: .day, value: offset, to: weekStart)
-        }
+        (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
     }
+
+    // MARK: - Color Mapping (5 states)
 
     private func colorForStatus(_ status: DayStatus) -> Color {
         switch status {
-        case .completed: return .green
-        case .partial: return .yellow
-        case .skipped: return .red
-        case .none: return Color(.systemGray5)
+        case .exceeded:  return .purple
+        case .targetMet: return .green
+        case .partial:   return .yellow
+        case .missed:    return .red
+        case .restDay:   return Color(.systemGray5)
         }
     }
 }

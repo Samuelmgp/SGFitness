@@ -22,6 +22,22 @@ final class WorkoutSession {
     var updatedAt: Date
     var targetDurationMinutes: Int?
 
+    // MARK: - Calendar Intelligence
+
+    /// Raw string backing for WorkoutStatus enum.
+    /// Empty string until CalendarComputationService runs after session completion.
+    var workoutStatusRaw: String = ""
+
+    /// True when PersonalRecordService created at least one PR for this session.
+    /// Set by CalendarComputationService after evaluatePRs() completes.
+    /// Used as a fast-path flag so the calendar does not need to re-scan PersonalRecords.
+    var hasPRs: Bool = false
+
+    /// Typed accessor for the persisted status.
+    var workoutStatus: WorkoutStatus? {
+        WorkoutStatus(rawValue: workoutStatusRaw)
+    }
+
     // MARK: - Relationships
 
     var user: User?
@@ -59,6 +75,8 @@ final class WorkoutSession {
         self.targetDurationMinutes = targetDurationMinutes
         self.user = user
         self.template = template
+        self.workoutStatusRaw = ""
+        self.hasPRs = false
         self.exercises = []
         self.stretches = []
         self.workoutExercises = []
