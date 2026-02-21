@@ -23,11 +23,14 @@ final class ExerciseDefinition {
     /// Canonical exercise name (e.g. "Barbell Bench Press").
     var name: String
 
-    /// Optional muscle group for future filtering/grouping.
-    var muscleGroup: String?
+    /// Muscle group for filtering and grouping. Nil for cardio exercises.
+    var muscleGroup: MuscleGroup?
 
     /// Optional equipment tag (e.g. "Barbell", "Dumbbell", "Bodyweight").
     var equipment: String?
+
+    /// Whether this is a strength or cardio exercise.
+    var exerciseType: ExerciseType = ExerciseType.strength
 
     var createdAt: Date
 
@@ -41,19 +44,32 @@ final class ExerciseDefinition {
     @Relationship(deleteRule: .nullify, inverse: \ExerciseSession.exerciseDefinition)
     var exerciseSessions: [ExerciseSession]
 
+    /// All WorkoutExercise instances linked to this definition.
+    @Relationship(deleteRule: .nullify, inverse: \WorkoutExercise.exerciseDefinition)
+    var workoutExercises: [WorkoutExercise]
+
+    /// Stored personal records for this exercise (gold/silver/bronze podium).
+    /// Cascade-deleted when the exercise definition is removed.
+    @Relationship(deleteRule: .cascade, inverse: \PersonalRecord.exerciseDefinition)
+    var personalRecords: [PersonalRecord]
+
     init(
         id: UUID = UUID(),
         name: String,
-        muscleGroup: String? = nil,
+        muscleGroup: MuscleGroup? = nil,
         equipment: String? = nil,
+        exerciseType: ExerciseType = .strength,
         createdAt: Date = .now
     ) {
         self.id = id
         self.name = name
         self.muscleGroup = muscleGroup
         self.equipment = equipment
+        self.exerciseType = exerciseType
         self.createdAt = createdAt
         self.exerciseTemplates = []
         self.exerciseSessions = []
+        self.workoutExercises = []
+        self.personalRecords = []
     }
 }

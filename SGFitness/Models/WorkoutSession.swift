@@ -20,6 +20,23 @@ final class WorkoutSession {
     var startedAt: Date
     var completedAt: Date?
     var updatedAt: Date
+    var targetDurationMinutes: Int?
+
+    // MARK: - Calendar Intelligence
+
+    /// Raw string backing for WorkoutStatus enum.
+    /// Empty string until CalendarComputationService runs after session completion.
+    var workoutStatusRaw: String = ""
+
+    /// True when PersonalRecordService created at least one PR for this session.
+    /// Set by CalendarComputationService after evaluatePRs() completes.
+    /// Used as a fast-path flag so the calendar does not need to re-scan PersonalRecords.
+    var hasPRs: Bool = false
+
+    /// Typed accessor for the persisted status.
+    var workoutStatus: WorkoutStatus? {
+        WorkoutStatus(rawValue: workoutStatusRaw)
+    }
 
     // MARK: - Relationships
 
@@ -32,6 +49,12 @@ final class WorkoutSession {
     @Relationship(deleteRule: .cascade, inverse: \ExerciseSession.workoutSession)
     var exercises: [ExerciseSession]
 
+    @Relationship(deleteRule: .cascade, inverse: \StretchEntry.workoutSession)
+    var stretches: [StretchEntry]
+
+    @Relationship(deleteRule: .cascade, inverse: \WorkoutExercise.workoutSession)
+    var workoutExercises: [WorkoutExercise]
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -39,6 +62,7 @@ final class WorkoutSession {
         startedAt: Date = .now,
         completedAt: Date? = nil,
         updatedAt: Date = .now,
+        targetDurationMinutes: Int? = nil,
         user: User? = nil,
         template: WorkoutTemplate? = nil
     ) {
@@ -48,8 +72,13 @@ final class WorkoutSession {
         self.startedAt = startedAt
         self.completedAt = completedAt
         self.updatedAt = updatedAt
+        self.targetDurationMinutes = targetDurationMinutes
         self.user = user
         self.template = template
+        self.workoutStatusRaw = ""
+        self.hasPRs = false
         self.exercises = []
+        self.stretches = []
+        self.workoutExercises = []
     }
 }

@@ -29,6 +29,10 @@ final class PerformedSet {
     /// Timestamp when this set was logged. Useful for rest-time calculations.
     var completedAt: Date?
 
+    /// Duration in seconds. For cardio sets: elapsed time. Nil for strength sets.
+    /// When used for cardio: reps = distance in meters, durationSeconds = time.
+    var durationSeconds: Int? = nil
+
     // MARK: - Relationships
 
     var exerciseSession: ExerciseSession?

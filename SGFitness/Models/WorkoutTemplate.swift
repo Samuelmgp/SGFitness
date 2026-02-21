@@ -16,6 +16,7 @@ final class WorkoutTemplate {
     var notes: String
     var createdAt: Date
     var updatedAt: Date
+    var targetDurationMinutes: Int?
 
     // MARK: - Relationships
 
@@ -24,12 +25,16 @@ final class WorkoutTemplate {
     @Relationship(deleteRule: .cascade, inverse: \ExerciseTemplate.workoutTemplate)
     var exercises: [ExerciseTemplate]
 
+    @Relationship(deleteRule: .cascade, inverse: \StretchGoal.workoutTemplate)
+    var stretches: [StretchGoal]
+
     init(
         id: UUID = UUID(),
         name: String,
         notes: String = "",
         createdAt: Date = .now,
         updatedAt: Date = .now,
+        targetDurationMinutes: Int? = nil,
         owner: User? = nil
     ) {
         self.id = id
@@ -37,7 +42,9 @@ final class WorkoutTemplate {
         self.notes = notes
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.targetDurationMinutes = targetDurationMinutes
         self.owner = owner
         self.exercises = []
+        self.stretches = []
     }
 }
