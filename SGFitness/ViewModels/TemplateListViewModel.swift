@@ -51,6 +51,15 @@ final class TemplateListViewModel {
     }
 
     func deleteTemplate(_ template: WorkoutTemplate) {
+        // Manually nullify WorkoutSession.template for every session that references
+        // this template. WorkoutTemplate has no declared inverse relationship to
+        // WorkoutSession, so SwiftData cannot nullify these automatically on deletion.
+        // Without this, the behavior is undefined and may cascade-delete or invalidate
+        // sessions that should be preserved as history.
+        for session in user.workoutSessions where session.template === template {
+            session.template = nil
+        }
+
         modelContext.delete(template)
         // Remove from local array immediately for responsive UI.
         templates.removeAll { $0.id == template.id }
