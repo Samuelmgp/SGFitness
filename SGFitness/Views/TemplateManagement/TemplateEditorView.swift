@@ -5,7 +5,6 @@ struct TemplateEditorView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: TemplateEditorViewModel
-    @State private var showingExercisePicker = false
     @State private var exercisePickerViewModel: ExercisePickerViewModel?
 
     // Pending exercise definition selected from picker — triggers navigation to config.
@@ -87,8 +86,9 @@ struct TemplateEditorView: View {
                 }
 
                 Button {
-                    exercisePickerViewModel = ExercisePickerViewModel(modelContext: modelContext)
-                    showingExercisePicker = true
+                    let vm = ExercisePickerViewModel(modelContext: modelContext)
+                    vm.fetchDefinitions()
+                    exercisePickerViewModel = vm
                 } label: {
                     Label("Add Exercise", systemImage: "plus.circle")
                 }
@@ -151,17 +151,15 @@ struct TemplateEditorView: View {
                 EditButton()
             }
         }
-        .sheet(isPresented: $showingExercisePicker, onDismiss: {
+        .sheet(item: $exercisePickerViewModel, onDismiss: {
             if pendingExerciseDefinition != nil {
                 showingExerciseConfig = true
             }
-        }) {
-            if let picker = exercisePickerViewModel {
-                ExercisePickerView(viewModel: picker, onSelect: { exercise in
-                    pendingExerciseDefinition = exercise
-                    showingExercisePicker = false
-                })
-            }
+        }) { picker in
+            ExercisePickerView(viewModel: picker, onSelect: { exercise in
+                pendingExerciseDefinition = exercise
+                exercisePickerViewModel = nil
+            })
         }
         .navigationDestination(isPresented: $showingExerciseConfig) {
             if let definition = pendingExerciseDefinition {

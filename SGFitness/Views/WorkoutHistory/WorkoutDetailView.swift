@@ -19,8 +19,7 @@ struct WorkoutDetailView: View {
     // Template save alert
     @State private var showingSavedAsTemplateAlert = false
 
-    // Exercise picker (add exercise)
-    @State private var showingExercisePicker = false
+    // Exercise picker (add exercise) — item-based sheet so data is always ready on first render
     @State private var exercisePickerVM: ExercisePickerViewModel?
 
     // Add set alert
@@ -63,10 +62,9 @@ struct WorkoutDetailView: View {
             if viewModel.isEditing {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
-                        if exercisePickerVM == nil {
-                            exercisePickerVM = ExercisePickerViewModel(modelContext: modelContext)
-                        }
-                        showingExercisePicker = true
+                        let vm = ExercisePickerViewModel(modelContext: modelContext)
+                        vm.fetchDefinitions()
+                        exercisePickerVM = vm
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -130,11 +128,10 @@ struct WorkoutDetailView: View {
         } message: {
             Text("Edit reps and weight for this set.")
         }
-        .sheet(isPresented: $showingExercisePicker) {
-            if let pickerVM = exercisePickerVM {
-                ExercisePickerView(viewModel: pickerVM) { definition in
-                    viewModel.addExercise(from: definition)
-                }
+        .sheet(item: $exercisePickerVM) { pickerVM in
+            ExercisePickerView(viewModel: pickerVM) { definition in
+                viewModel.addExercise(from: definition)
+                exercisePickerVM = nil
             }
         }
     }

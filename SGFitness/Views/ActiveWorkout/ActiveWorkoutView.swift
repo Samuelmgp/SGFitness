@@ -6,14 +6,17 @@ struct ActiveWorkoutView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: ActiveWorkoutViewModel
-    @State private var showingExercisePicker = false
+    @State private var exercisePickerViewModel: ExercisePickerViewModel?
     @State private var showingFinishConfirm = false
     @State private var showingDiscardConfirm = false
-    @State private var exercisePickerViewModel: ExercisePickerViewModel?
+    @State private var showingSaveAsTemplatePrompt = false
+    @State private var templateSaveHours: Int = 0
+    @State private var templateSaveMinutes: Int = 45
     @State private var showingPRBanner = false
     @State private var prBannerMessage = ""
     @State private var showingManualDuration = false
-    @State private var manualDurationInput: String = "45"
+    @State private var finishHours: Int = 0
+    @State private var finishMinutes: Int = 45
     @State private var showingAddStretch = false
     @State private var newStretchName: String = ""
     @State private var newStretchDuration: String = ""
@@ -65,8 +68,9 @@ struct ActiveWorkoutView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        exercisePickerViewModel = ExercisePickerViewModel(modelContext: modelContext)
-                        showingExercisePicker = true
+                        let vm = ExercisePickerViewModel(modelContext: modelContext)
+                        vm.fetchDefinitions()
+                        exercisePickerViewModel = vm
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -75,6 +79,8 @@ struct ActiveWorkoutView: View {
                     Menu {
                         Button("Finish Workout", systemImage: "checkmark.circle") {
                             if viewModel.isManualEntry {
+                                finishHours = 0
+                                finishMinutes = 45
                                 showingManualDuration = true
                             } else {
                                 viewModel.finishWorkout()
@@ -82,7 +88,9 @@ struct ActiveWorkoutView: View {
                             }
                         }
                         Button("Save as Template", systemImage: "square.and.arrow.down") {
-                            viewModel.saveAsTemplate()
+                            templateSaveHours = 0
+                            templateSaveMinutes = 45
+                            showingSaveAsTemplatePrompt = true
                         }
                         Button("Discard Workout", systemImage: "trash", role: .destructive) {
                             viewModel.discardWorkout()
@@ -93,25 +101,17 @@ struct ActiveWorkoutView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingExercisePicker) {
-                if let picker = exercisePickerViewModel {
-                    ExercisePickerView(viewModel: picker, onSelect: { definition in
-                        viewModel.addExercise(from: definition)
-                        showingExercisePicker = false
-                    })
-                }
+            .sheet(item: $exercisePickerViewModel) { picker in
+                ExercisePickerView(viewModel: picker, onSelect: { definition in
+                    viewModel.addExercise(from: definition)
+                    exercisePickerViewModel = nil
+                })
             }
-            .alert("Workout Duration", isPresented: $showingManualDuration) {
-                TextField("Minutes", text: $manualDurationInput)
-                    .keyboardType(.numberPad)
-                Button("Cancel", role: .cancel) {}
-                Button("Finish") {
-                    let minutes = Int(manualDurationInput) ?? 45
-                    viewModel.finishWorkout(manualDurationMinutes: minutes)
-                    dismiss()
-                }
-            } message: {
-                Text("How long was your workout? (minutes)")
+            .sheet(isPresented: $showingSaveAsTemplatePrompt) {
+                saveAsTemplateSheet
+            }
+            .sheet(isPresented: $showingManualDuration) {
+                finishWorkoutSheet
             }
             .alert("Add Stretch", isPresented: $showingAddStretch) {
                 TextField("Stretch name", text: $newStretchName)
@@ -218,6 +218,10 @@ struct ActiveWorkoutView: View {
                 // Stretch section — always at the top, visible from the moment
                 // a workout starts (even before any exercises are added).
                 stretchSection
+
+                // Reading refreshCounter establishes an @Observable subscription so
+                // the list re-renders when exercises are added or removed.
+                let _ = viewModel.refreshCounter
 
                 // Exercise cards, or an inline empty state when none exist yet.
                 if viewModel.exercises.isEmpty {
@@ -368,6 +372,116 @@ struct ActiveWorkoutView: View {
         .padding()
         .background(.fill.quaternary)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Finish Workout Sheet (manual entry)
+
+    private var finishWorkoutSheet: some View {
+        NavigationStack {
+            VStack(spacing: 4) {
+                Text("How long was your workout?")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+
+                HStack(spacing: 0) {
+                    VStack(spacing: 2) {
+                        Picker("Hours", selection: $finishHours) {
+                            ForEach(0...23, id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("hours")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(spacing: 2) {
+                        Picker("Minutes", selection: $finishMinutes) {
+                            ForEach(0...59, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("minutes")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .navigationTitle("Finish Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingManualDuration = false }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Finish") {
+                        let total = finishHours * 60 + finishMinutes
+                        viewModel.finishWorkout(manualDurationMinutes: total > 0 ? total : 45)
+                        showingManualDuration = false
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(finishHours == 0 && finishMinutes == 0)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    // MARK: - Save as Template Sheet
+
+    private var saveAsTemplateSheet: some View {
+        NavigationStack {
+            VStack(spacing: 4) {
+                Text("Set a typical duration for this template")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+
+                HStack(spacing: 0) {
+                    VStack(spacing: 2) {
+                        Picker("Hours", selection: $templateSaveHours) {
+                            ForEach(0...23, id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("hours")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(spacing: 2) {
+                        Picker("Minutes", selection: $templateSaveMinutes) {
+                            ForEach(0...59, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        Text("minutes")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .navigationTitle("Save as Template")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingSaveAsTemplatePrompt = false }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Save") {
+                        let total = templateSaveHours * 60 + templateSaveMinutes
+                        viewModel.saveAsTemplate(targetDurationMinutes: total > 0 ? total : nil)
+                        showingSaveAsTemplatePrompt = false
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Helpers
