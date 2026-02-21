@@ -201,10 +201,6 @@ struct WorkoutDetailView: View {
             let sortedSets = exercise.performedSets.sorted { $0.order < $1.order }
             ForEach(sortedSets, id: \.id) { set in
                 HStack {
-                    Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "xmark.circle")
-                        .foregroundStyle(set.isCompleted ? .green : .red)
-                        .frame(width: 24)
-
                     Text("Set \(set.order + 1)")
                         .frame(width: 50, alignment: .leading)
 
@@ -213,6 +209,9 @@ struct WorkoutDetailView: View {
 
                     Text(weightDisplayText(set.weight))
                         .frame(maxWidth: .infinity, alignment: .center)
+
+                    Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "xmark.circle")
+                        .foregroundStyle(set.isCompleted ? .green : .red)
 
                     if viewModel.isEditing {
                         Button(role: .destructive) {

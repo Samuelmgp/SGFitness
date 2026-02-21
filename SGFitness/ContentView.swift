@@ -97,7 +97,11 @@ struct ContentView: View {
                 }
         }
         // Active workout is presented as a full-screen cover.
-        .fullScreenCover(item: $activeWorkoutVM) { vm in
+        // onDismiss refreshes the history session list immediately so it is
+        // up-to-date when the user navigates to the History tab.
+        .fullScreenCover(item: $activeWorkoutVM, onDismiss: {
+            workoutHistoryVM?.fetchSessions()
+        }) { vm in
             ActiveWorkoutView(viewModel: vm)
         }
         // Onboarding sheet on first launch.

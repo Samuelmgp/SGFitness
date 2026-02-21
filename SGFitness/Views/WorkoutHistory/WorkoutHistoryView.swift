@@ -49,6 +49,9 @@ struct WorkoutHistoryView: View {
                     yearGridVM = YearGridViewModel(modelContext: modelContext)
                 }
                 viewModel.fetchSessions()
+                // Refresh calendar on every appear so it stays in sync after
+                // workout completions, deletions, or returning from other tabs.
+                yearGridVM?.fetchYearData()
             }
         }
     }
@@ -67,6 +70,10 @@ struct WorkoutHistoryView: View {
                     let session = viewModel.filteredSessions[index]
                     viewModel.deleteSession(session)
                 }
+                // Calendar data changes after deletion (CalendarComputationService
+                // rebuildAll runs inside deleteSession). Refresh the grid so it
+                // reflects the removal immediately without requiring a tab switch.
+                yearGridVM?.fetchYearData()
             }
         }
         .listStyle(.plain)
