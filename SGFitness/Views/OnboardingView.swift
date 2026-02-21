@@ -2,7 +2,9 @@ import SwiftUI
 
 // MARK: - OnboardingView
 // Full welcome sheet presented on first launch.
-// Collects user name and weight unit preference.
+// Collects name, weight unit preference, height, and body weight.
+// Height is stored in metres; body weight in kg. Both are converted
+// for display based on the user's chosen weight unit.
 
 struct OnboardingView: View {
 
@@ -12,69 +14,204 @@ struct OnboardingView: View {
     @State private var userName: String = ""
     @State private var weightUnit: WeightUnit = .lbs
 
+    // Height — metric path (cm)
+    @State private var heightCm: Int = 170
+    // Height — imperial path (ft + in)
+    @State private var heightFeet: Int = 5
+    @State private var heightInches: Int = 9
+
+    // Body weight as a typed string in the selected unit
+    @State private var bodyWeightText: String = ""
+
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        ScrollView {
+            VStack(spacing: 28) {
+                Spacer(minLength: 24)
 
-            // MARK: - Branding
-            Image(systemName: "figure.strengthtraining.traditional")
-                .font(.system(size: 72))
-                .foregroundStyle(.tint)
+                // MARK: - Branding
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .font(.system(size: 72))
+                    .foregroundStyle(.tint)
 
-            Text("Welcome to SGFitness")
-                .font(.largeTitle.bold())
+                Text("Welcome to SGFitness")
+                    .font(.largeTitle.bold())
 
-            Text("Track your workouts, build your strength.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-
-            // MARK: - Input Fields
-            VStack(spacing: 16) {
-                TextField("Your Name", text: $userName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.title3)
+                Text("Track your workouts, build your strength.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
-                Picker("Weight Unit", selection: $weightUnit) {
-                    Text("kg").tag(WeightUnit.kg)
-                    Text("lbs").tag(WeightUnit.lbs)
+                // MARK: - Name & Unit
+                VStack(spacing: 16) {
+                    TextField("Your Name", text: $userName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.title3)
+                        .multilineTextAlignment(.center)
+
+                    Picker("Weight Unit", selection: $weightUnit) {
+                        Text("kg").tag(WeightUnit.kg)
+                        Text("lbs").tag(WeightUnit.lbs)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
-            }
-            .padding(.horizontal, 40)
+                .padding(.horizontal, 40)
 
-            // MARK: - Guidance
-            VStack(spacing: 8) {
-                Label("Start by creating a workout template", systemImage: "list.clipboard")
-                Label("Then use it to track your workouts", systemImage: "figure.run")
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+                // MARK: - Height
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "ruler")
+                            .foregroundStyle(.tint)
+                        Text("Height")
+                            .font(.headline)
+                        Text("(optional)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-            Spacer()
+                    if weightUnit == .kg {
+                        // Metric: single cm wheel
+                        HStack(spacing: 0) {
+                            Picker("Height (cm)", selection: $heightCm) {
+                                ForEach(100...250, id: \.self) { cm in
+                                    Text("\(cm)").tag(cm)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity)
 
-            // MARK: - Get Started
-            Button {
-                let name = userName.trimmingCharacters(in: .whitespacesAndNewlines)
-                user.name = name.isEmpty ? "Athlete" : name
-                user.preferredWeightUnit = weightUnit
-                onComplete()
-            } label: {
-                Text("Get Started")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                            Text("cm")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40)
+                        }
+                        .frame(height: 120)
+                    } else {
+                        // Imperial: ft + in wheels side by side
+                        HStack(spacing: 0) {
+                            VStack(spacing: 2) {
+                                Picker("Feet", selection: $heightFeet) {
+                                    ForEach(4...7, id: \.self) { Text("\($0)").tag($0) }
+                                }
+                                .pickerStyle(.wheel)
+                                .frame(maxWidth: .infinity)
+                                Text("ft")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            VStack(spacing: 2) {
+                                Picker("Inches", selection: $heightInches) {
+                                    ForEach(0...11, id: \.self) { Text("\($0)\"").tag($0) }
+                                }
+                                .pickerStyle(.wheel)
+                                .frame(maxWidth: .infinity)
+                                Text("in")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(height: 130)
+                    }
+                }
+                .padding(.horizontal, 40)
+
+                // MARK: - Body Weight
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "scalemass")
+                            .foregroundStyle(.tint)
+                        Text("Body Weight")
+                            .font(.headline)
+                        Text("(optional)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 8) {
+                        TextField(weightUnit == .kg ? "e.g. 70" : "e.g. 155",
+                                  text: $bodyWeightText)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.center)
+
+                        Text(weightUnit.rawValue)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36)
+                    }
+                }
+                .padding(.horizontal, 40)
+
+                // MARK: - Guidance
+                VStack(spacing: 8) {
+                    Label("Start by creating a workout template", systemImage: "list.clipboard")
+                    Label("Then use it to track your workouts", systemImage: "figure.run")
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 8)
+
+                // MARK: - Get Started
+                Button {
+                    saveAndComplete()
+                } label: {
+                    Text("Get Started")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 32)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.horizontal, 32)
-            .padding(.bottom, 32)
         }
         .onAppear {
             userName = user.name == "Athlete" ? "" : user.name
             weightUnit = user.preferredWeightUnit
+            loadExistingMeasurements()
         }
         .interactiveDismissDisabled()
+    }
+
+    // MARK: - Helpers
+
+    private func saveAndComplete() {
+        let name = userName.trimmingCharacters(in: .whitespacesAndNewlines)
+        user.name = name.isEmpty ? "Athlete" : name
+        user.preferredWeightUnit = weightUnit
+
+        // Height → metres
+        if weightUnit == .kg {
+            user.heightMeters = Double(heightCm) / 100.0
+        } else {
+            let totalInches = heightFeet * 12 + heightInches
+            user.heightMeters = Double(totalInches) * 0.0254
+        }
+
+        // Body weight → kg
+        if let value = Double(bodyWeightText), value > 0 {
+            user.bodyWeightKg = weightUnit.toKilograms(value)
+        }
+
+        onComplete()
+    }
+
+    private func loadExistingMeasurements() {
+        if let h = user.heightMeters {
+            if user.preferredWeightUnit == .kg {
+                heightCm = Int(h * 100)
+            } else {
+                let totalInches = Int(h / 0.0254)
+                heightFeet = max(4, min(7, totalInches / 12))
+                heightInches = totalInches % 12
+            }
+        }
+        if let w = user.bodyWeightKg {
+            let display = user.preferredWeightUnit.fromKilograms(w)
+            bodyWeightText = display.truncatingRemainder(dividingBy: 1) == 0
+                ? "\(Int(display))"
+                : String(format: "%.1f", display)
+        }
     }
 }

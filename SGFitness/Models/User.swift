@@ -16,6 +16,12 @@ final class User {
     /// Display unit for weights. All persisted weights are stored in kg.
     var preferredWeightUnit: WeightUnit
 
+    /// User's height stored in metres regardless of display preference.
+    var heightMeters: Double?
+
+    /// User's body weight stored in kg regardless of display preference.
+    var bodyWeightKg: Double?
+
     // MARK: - Relationships
 
     @Relationship(deleteRule: .cascade, inverse: \WorkoutTemplate.owner)
@@ -34,12 +40,16 @@ final class User {
         id: UUID = UUID(),
         name: String,
         createdAt: Date = .now,
-        preferredWeightUnit: WeightUnit = .lbs
+        preferredWeightUnit: WeightUnit = .lbs,
+        heightMeters: Double? = nil,
+        bodyWeightKg: Double? = nil
     ) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
         self.preferredWeightUnit = preferredWeightUnit
+        self.heightMeters = heightMeters
+        self.bodyWeightKg = bodyWeightKg
         self.workoutTemplates = []
         self.workoutSessions = []
         self.badgeAwards = []
