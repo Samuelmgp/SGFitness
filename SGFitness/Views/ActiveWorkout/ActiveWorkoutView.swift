@@ -65,7 +65,9 @@ struct ActiveWorkoutView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        exercisePickerViewModel = ExercisePickerViewModel(modelContext: modelContext)
+                        if exercisePickerViewModel == nil {
+                            exercisePickerViewModel = ExercisePickerViewModel(modelContext: modelContext)
+                        }
                         showingExercisePicker = true
                     } label: {
                         Image(systemName: "plus")

@@ -29,6 +29,7 @@ final class ExercisePickerViewModel {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        fetchDefinitions()
     }
 
     func fetchDefinitions() {
