@@ -83,13 +83,13 @@ struct ProfileView: View {
                 // MARK: - Library & Records
                 Section("Library") {
                     NavigationLink {
-                        PersonalRecordsView()
+                        PersonalRecordsView(weightUnit: user.preferredWeightUnit)
                     } label: {
                         Label("Personal Records", systemImage: "trophy")
                     }
 
                     NavigationLink {
-                        ExerciseLibraryView()
+                        ExerciseLibraryView(weightUnit: user.preferredWeightUnit)
                     } label: {
                         Label("Exercise Library", systemImage: "books.vertical")
                     }

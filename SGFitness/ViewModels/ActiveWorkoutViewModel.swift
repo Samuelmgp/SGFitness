@@ -295,8 +295,12 @@ final class ActiveWorkoutViewModel: Identifiable {
 
     /// Start a manual-entry workout: same as ad-hoc but the timer does not run.
     /// The user provides the final duration when calling finishWorkout(manualDurationMinutes:).
-    func startManualEntry(name: String) {
-        let session = WorkoutSession(name: name, user: user)
+    /// - Parameters:
+    ///   - name: Display name for the session.
+    ///   - startedAt: When the workout took place. Defaults to now; pass a past
+    ///     date when the user is logging a workout after the fact.
+    func startManualEntry(name: String, startedAt: Date = .now) {
+        let session = WorkoutSession(name: name, startedAt: startedAt, user: user)
         modelContext.insert(session)
         self.session = session
         isManualEntry = true
@@ -855,9 +859,11 @@ final class ActiveWorkoutViewModel: Identifiable {
         // Max weight check
         if let weight = weight, weight > 0 {
             if baseline.maxWeightKg == nil || weight > baseline.maxWeightKg! {
+                let unit = preferredWeightUnit
+                let displayWeight = unit.fromKilograms(weight)
                 latestPRAlert = PRAlert(
                     exerciseName: exercise.name,
-                    metric: "Max weight: \(formatWeightForAlert(weight)) kg"
+                    metric: "Max weight: \(formatWeightForAlert(displayWeight)) \(unit.rawValue)"
                 )
                 baseline.maxWeightKg = weight
                 prBaselines[defId] = baseline
@@ -872,9 +878,11 @@ final class ActiveWorkoutViewModel: Identifiable {
             return total + Double(set.reps) * w
         }
         if sessionVolume > 0, (baseline.bestVolumeKg == nil || sessionVolume > baseline.bestVolumeKg!) {
+            let unit = preferredWeightUnit
+            let displayVolume = unit.fromKilograms(sessionVolume)
             latestPRAlert = PRAlert(
                 exerciseName: exercise.name,
-                metric: "Best volume: \(formatWeightForAlert(sessionVolume)) kg"
+                metric: "Best volume: \(formatWeightForAlert(displayVolume)) \(unit.rawValue)"
             )
             baseline.bestVolumeKg = sessionVolume
             prBaselines[defId] = baseline

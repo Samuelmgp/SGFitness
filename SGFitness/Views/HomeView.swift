@@ -8,10 +8,13 @@ struct HomeView: View {
     let user: User
     let onStartFromTemplate: (WorkoutTemplate) -> Void
     let onStartAdHoc: () -> Void
-    let onLogWorkout: () -> Void
+    let onLogWorkout: (String, Date) -> Void
 
     @State private var showingTemplatePicker = false
     @State private var pendingTemplate: WorkoutTemplate?
+    @State private var showingLogSetup = false
+    @State private var logWorkoutName = ""
+    @State private var logWorkoutDate = Date.now
     @State private var todayCompletion: Double = 0
     @State private var todaySessions: [WorkoutSession] = []
 
@@ -56,7 +59,9 @@ struct HomeView: View {
                         .controlSize(.large)
 
                         Button {
-                            onLogWorkout()
+                            logWorkoutName = ""
+                            logWorkoutDate = .now
+                            showingLogSetup = true
                         } label: {
                             Label("Log a Workout", systemImage: "square.and.pencil")
                                 .font(.headline)
@@ -73,6 +78,19 @@ struct HomeView: View {
             }
             .navigationTitle("SGFitness")
             .onAppear { fetchTodayData() }
+            .sheet(isPresented: $showingLogSetup) {
+                LogWorkoutSetupSheet(
+                    name: $logWorkoutName,
+                    date: $logWorkoutDate
+                ) {
+                    showingLogSetup = false
+                    let name = logWorkoutName.trimmingCharacters(in: .whitespaces)
+                    let finalName = name.isEmpty ? "Workout Log" : name
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onLogWorkout(finalName, logWorkoutDate)
+                    }
+                }
+            }
             .sheet(isPresented: $showingTemplatePicker, onDismiss: {
                 if let template = pendingTemplate {
                     pendingTemplate = nil
@@ -258,5 +276,44 @@ private struct TemplatePickerSheet: View {
             )
             templates = (try? modelContext.fetch(descriptor)) ?? []
         }
+    }
+}
+
+// MARK: - Log Workout Setup Sheet
+
+private struct LogWorkoutSetupSheet: View {
+
+    @Binding var name: String
+    @Binding var date: Date
+    let onConfirm: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Workout Details") {
+                    TextField("Workout name", text: $name)
+                    DatePicker(
+                        "Date",
+                        selection: $date,
+                        in: ...Date.now,
+                        displayedComponents: .date
+                    )
+                }
+            }
+            .navigationTitle("Log a Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Continue") { onConfirm() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }

@@ -9,6 +9,7 @@ struct ExerciseDefinitionDetailView: View {
 
     let definition: ExerciseDefinition
     let viewModel: ExercisePickerViewModel
+    var weightUnit: WeightUnit = .kg
 
     @Environment(\.modelContext) private var modelContext
     @State private var showingEditSheet = false
@@ -119,8 +120,9 @@ struct ExerciseDefinitionDetailView: View {
             if !maxWeightRecords.isEmpty {
                 ForEach(maxWeightRecords, id: \.id) { record in
                     let valueText = record.valueKg.map { kg in
+                        let converted = weightUnit.fromKilograms(kg)
                         let repsStr = record.reps.map { " × \($0) reps" } ?? ""
-                        return "\(formatWeight(kg)) kg\(repsStr)"
+                        return "\(formatWeight(converted)) \(weightUnit.rawValue)\(repsStr)"
                     } ?? ""
                     podiumRow(record: record, label: "Max Weight", valueText: valueText)
                 }
@@ -128,7 +130,10 @@ struct ExerciseDefinitionDetailView: View {
 
             if !bestVolumeRecords.isEmpty {
                 ForEach(bestVolumeRecords, id: \.id) { record in
-                    let valueText = record.valueKg.map { "\(formatWeight($0)) kg" } ?? ""
+                    let valueText = record.valueKg.map { kg in
+                        let converted = weightUnit.fromKilograms(kg)
+                        return "\(formatWeight(converted)) \(weightUnit.rawValue)"
+                    } ?? ""
                     podiumRow(record: record, label: "Best Volume", valueText: valueText)
                 }
             }
@@ -195,7 +200,8 @@ struct ExerciseDefinitionDetailView: View {
         } else {
             let parts = completed.map { set -> String in
                 if let weight = set.weight {
-                    return "\(set.reps) × \(formatWeight(weight))kg"
+                    let converted = weightUnit.fromKilograms(weight)
+                    return "\(set.reps) × \(formatWeight(converted))\(weightUnit.rawValue)"
                 }
                 return "\(set.reps) reps"
             }
