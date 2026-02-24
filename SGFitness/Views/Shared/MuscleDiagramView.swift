@@ -1,247 +1,246 @@
 import SwiftUI
 
+// MARK: - DiagramSide
+// Chooses which anatomical view to render.
+// Small list badges (32–38 pt) pass a single side driven by the muscle group.
+// Large detail views (≥ 200 pt) render both sides separately in a HStack.
+enum DiagramSide {
+    case front
+    case back
+}
+
 // MARK: - MuscleDiagramView
 //
-// Renders a single humanoid silhouette in the style of gym machine anatomy diagrams.
+// Geometric anatomy diagram icon styled after gym machine muscle diagrams.
+// Every region is a rectangle or trapezoid — no curves — for a modern,
+// clean block-anatomy look that reads clearly at any size.
 //
-// View selection:
-//   Front view — Chest, Core, Arms, Legs, Shoulders
-//   Back  view — Back only
+// Front view layout (top → bottom):
+//   Head (ellipse) → Collar (trapezoid) → Deltoids (rect caps)
+//   Arms (rect, beside body) | Pectorals (2 trapezoids) | →
+//   Obliques (2 side trapezoids) + Abs 3×2 grid (6 rects) →
+//   V-taper (trapezoid) → Upper legs (2 rects) → Lower legs (2 rects)
 //
-// Shapes are drawn as sharp polygons to produce a "shredded" anatomical look:
-//   • Deltoids   — angular triangular caps at the shoulders
-//   • Pectorals  — wedge/fan shapes from shoulder to sternum (front)
-//   • Abdominals — 3×2 grid of rectangles (classic 6-pack, front)
-//   • Trapezius  — large diamond from neck to mid-back (back)
-//   • Lats       — wide triangular sweeps on each side (back)
-//   • Erectors   — two narrow vertical columns (back)
-//   • Limbs      — angular parallelograms
+// Back view layout:
+//   Head → Collar → Deltoids → Arms (rect, beside body)
+//   Lats (2 long trapezoids) → Rear V-taper (small trapezoid) →
+//   Glutes (2 rects) → Upper legs (2 rects) → Lower legs (2 rects)
 //
-// The targeted muscle group is highlighted in its accent colour; all other body
-// parts are rendered muted. A tinted rounded-square background (accent at low
-// opacity) matches the coloured-badge appearance used elsewhere in the app.
-//
-// All coordinates are normalised (0–1) and scaled to the canvas at render time.
+// The target muscle group is highlighted in its accent colour; all other
+// regions are muted. Tinted rounded-square background (accent at 14 %).
 
 struct MuscleDiagramView: View {
 
     let muscleGroup: MuscleGroup
+    let side: DiagramSide
     var size: CGFloat = 38
 
     var body: some View {
         ZStack {
-            // ── Tinted background ──────────────────────────────────────────
+            // Tinted background
             RoundedRectangle(cornerRadius: size * 0.22)
                 .fill(muscleGroup.color.opacity(0.14))
 
-            // ── Body diagram ───────────────────────────────────────────────
             Canvas { ctx, canvas in
                 let w = canvas.width
                 let h = canvas.height
 
-                // Scale normalised (0–1) coordinate to canvas point
+                // Scale normalised coordinate to canvas point
                 func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
                     CGPoint(x: x * w, y: y * h)
                 }
 
-                // Build a closed filled polygon from normalised coords
-                func poly(_ coords: [(CGFloat, CGFloat)]) -> Path {
-                    var path = Path()
-                    guard let first = coords.first else { return path }
-                    path.move(to: pt(first.0, first.1))
-                    for c in coords.dropFirst() { path.addLine(to: pt(c.0, c.1)) }
-                    path.closeSubpath()
-                    return path
+                // Closed straight-edged polygon (for trapezoids)
+                func poly(_ c: [(CGFloat, CGFloat)]) -> Path {
+                    var p = Path()
+                    guard let f = c.first else { return p }
+                    p.move(to: pt(f.0, f.1))
+                    for v in c.dropFirst() { p.addLine(to: pt(v.0, v.1)) }
+                    p.closeSubpath()
+                    return p
                 }
 
-                let muted = GraphicsContext.Shading.color(Color.secondary.opacity(0.30))
+                // Rounded rectangle (for block shapes)
+                let cr = size * 0.055  // corner radius — scales with icon size
+                func rRect(_ x: CGFloat, _ y: CGFloat,
+                           _ rw: CGFloat, _ rh: CGFloat) -> Path {
+                    Path(roundedRect: CGRect(x: x * w, y: y * h,
+                                            width: rw * w, height: rh * h),
+                         cornerRadius: cr)
+                }
+
+                let muted = GraphicsContext.Shading.color(Color.secondary.opacity(0.28))
                 let lit   = GraphicsContext.Shading.color(muscleGroup.color)
 
-                // ── Shared shapes (present in both views) ─────────────────
+                func draw(_ path: Path, active: Bool) {
+                    ctx.fill(path, with: active ? lit : muted)
+                }
+
+                // ── Shared shapes (identical in both views) ───────────────
 
                 // Head
-                let headRect = CGRect(
-                    x: 0.365 * w, y: 0.010 * h,
-                    width: 0.270 * w, height: 0.122 * h)
+                let head = Path(ellipseIn: CGRect(
+                    x: 0.370 * w, y: 0.010 * h,
+                    width: 0.260 * w, height: 0.112 * h))
 
-                // Neck
-                let neck: [(CGFloat, CGFloat)] = [
-                    (0.42, 0.132), (0.58, 0.132), (0.55, 0.182), (0.45, 0.182)
-                ]
+                // Collar / neck — trapezoid, wider at top
+                let collar = poly([
+                    (0.402, 0.130), (0.598, 0.130),
+                    (0.562, 0.182), (0.438, 0.182)
+                ])
 
-                // Deltoid caps — angular triangular shapes at shoulders
-                let lDelt: [(CGFloat, CGFloat)] = [
-                    (0.14, 0.182), (0.01, 0.244), (0.07, 0.368), (0.21, 0.312)
-                ]
-                let rDelt: [(CGFloat, CGFloat)] = [
-                    (0.86, 0.182), (0.99, 0.244), (0.93, 0.368), (0.79, 0.312)
-                ]
+                // Deltoid caps — square-ish blocks at shoulder junctions
+                let lDelt = rRect(0.062, 0.182, 0.138, 0.082)
+                let rDelt = rRect(0.800, 0.182, 0.138, 0.082)
 
-                // Upper arms (biceps / triceps)
-                let lUA: [(CGFloat, CGFloat)] = [
-                    (0.21, 0.312), (0.07, 0.368), (0.09, 0.510), (0.23, 0.456)
-                ]
-                let rUA: [(CGFloat, CGFloat)] = [
-                    (0.79, 0.312), (0.93, 0.368), (0.91, 0.510), (0.77, 0.456)
-                ]
+                // Arms — tall rectangles hanging from deltoids
+                // (same height for both views so the silhouette matches)
+                let lArm  = rRect(0.078, 0.272, 0.104, 0.448)   // ends ≈ 0.720
+                let rArm  = rRect(0.818, 0.272, 0.104, 0.448)
 
-                // Forearms — taper toward wrist
-                let lFA: [(CGFloat, CGFloat)] = [
-                    (0.23, 0.456), (0.09, 0.510), (0.12, 0.638), (0.26, 0.598)
-                ]
-                let rFA: [(CGFloat, CGFloat)] = [
-                    (0.77, 0.456), (0.91, 0.510), (0.88, 0.638), (0.74, 0.598)
-                ]
+                // ── View-specific shapes ───────────────────────────────────
 
-                switch muscleGroup {
+                switch side {
+
+                // ── FRONT VIEW ────────────────────────────────────────────
+                case .front:
+
+                    // Pectorals — 2 trapezoids under collar
+                    // Wider at shoulder line, slightly narrower at bottom
+                    let lPec = poly([
+                        (0.208, 0.190), (0.490, 0.190),
+                        (0.468, 0.370), (0.252, 0.370)
+                    ])
+                    let rPec = poly([
+                        (0.510, 0.190), (0.792, 0.190),
+                        (0.748, 0.370), (0.532, 0.370)
+                    ])
+
+                    // Obliques — 2 side trapezoids, outer edge vertical,
+                    // inner edge tapers slightly inward toward waist
+                    let lObl = poly([
+                        (0.208, 0.378), (0.296, 0.378),
+                        (0.280, 0.562), (0.208, 0.562)
+                    ])
+                    let rObl = poly([
+                        (0.704, 0.378), (0.792, 0.378),
+                        (0.792, 0.562), (0.720, 0.562)
+                    ])
+
+                    // Abdominals — 3 rows × 2 columns of rounded squares
+                    // Col starts: left = 0.308, right = 0.538 (width each = 0.154)
+                    // Row starts: 0.378, 0.442, 0.506  (height each = 0.054, gap 0.010)
+                    let a1L = rRect(0.308, 0.378, 0.154, 0.054)
+                    let a1R = rRect(0.538, 0.378, 0.154, 0.054)
+                    let a2L = rRect(0.308, 0.442, 0.154, 0.054)
+                    let a2R = rRect(0.538, 0.442, 0.154, 0.054)
+                    let a3L = rRect(0.308, 0.506, 0.154, 0.054)
+                    let a3R = rRect(0.538, 0.506, 0.154, 0.054)
+
+                    // V-taper — trapezoid connecting torso to legs
+                    // Full torso width at top, narrows to leg-gap width at bottom
+                    let vTaper = poly([
+                        (0.208, 0.562), (0.792, 0.562),
+                        (0.614, 0.642), (0.386, 0.642)
+                    ])
+
+                    // Legs — 4 rectangles (upper + lower per side)
+                    let lUL = rRect(0.208, 0.650, 0.280, 0.166)
+                    let rUL = rRect(0.512, 0.650, 0.280, 0.166)
+                    let lLL = rRect(0.224, 0.824, 0.248, 0.164)
+                    let rLL = rRect(0.528, 0.824, 0.248, 0.164)
+
+                    // Draw all shapes, muted by default
+                    ctx.fill(head, with: muted)
+                    for p in [collar, lDelt, rDelt, lPec, rPec,
+                              lObl, rObl,
+                              a1L, a1R, a2L, a2R, a3L, a3R,
+                              vTaper, lArm, rArm,
+                              lUL, rUL, lLL, rLL] {
+                        ctx.fill(p, with: muted)
+                    }
+
+                    // Apply highlights
+                    switch muscleGroup {
+                    case .chest:
+                        draw(lPec,  active: true)
+                        draw(rPec,  active: true)
+                    case .core:
+                        draw(lObl,  active: true)
+                        draw(rObl,  active: true)
+                        draw(a1L,   active: true); draw(a1R, active: true)
+                        draw(a2L,   active: true); draw(a2R, active: true)
+                        draw(a3L,   active: true); draw(a3R, active: true)
+                    case .arms:
+                        draw(lArm,  active: true)
+                        draw(rArm,  active: true)
+                    case .legs:
+                        draw(lUL,   active: true); draw(rUL, active: true)
+                        draw(lLL,   active: true); draw(rLL, active: true)
+                    case .shoulders:
+                        draw(lDelt, active: true)
+                        draw(rDelt, active: true)
+                    case .back:
+                        break  // back muscles not visible from front
+                    }
 
                 // ── BACK VIEW ─────────────────────────────────────────────
                 case .back:
-                    // Trapezius — large diamond from neck down to mid-back
-                    let trap: [(CGFloat, CGFloat)] = [
-                        (0.42, 0.132), (0.58, 0.132),
-                        (0.83, 0.218), (0.75, 0.448),
-                        (0.50, 0.488), (0.25, 0.448), (0.17, 0.218)
-                    ]
 
-                    // Latissimus dorsi — wide triangular sweeps flanking the trap
-                    let lLat: [(CGFloat, CGFloat)] = [
-                        (0.17, 0.218), (0.25, 0.218), (0.26, 0.558), (0.13, 0.558)
-                    ]
-                    let rLat: [(CGFloat, CGFloat)] = [
-                        (0.83, 0.218), (0.75, 0.218), (0.74, 0.558), (0.87, 0.558)
-                    ]
+                    // Lats — 2 longer trapezoids
+                    // Wide at shoulder line, taper toward waist (V-taper effect)
+                    let lLat = poly([
+                        (0.208, 0.190), (0.490, 0.190),
+                        (0.380, 0.530), (0.208, 0.530)
+                    ])
+                    let rLat = poly([
+                        (0.510, 0.190), (0.792, 0.190),
+                        (0.792, 0.530), (0.620, 0.530)
+                    ])
 
-                    // Erector spinae — two vertical columns either side of spine
-                    let lES: [(CGFloat, CGFloat)] = [
-                        (0.36, 0.488), (0.49, 0.488), (0.49, 0.612), (0.36, 0.612)
-                    ]
-                    let rES: [(CGFloat, CGFloat)] = [
-                        (0.51, 0.488), (0.64, 0.488), (0.64, 0.612), (0.51, 0.612)
-                    ]
+                    // Rear V-taper — small trapezoid (lower back / lumbar)
+                    // Fills the gap between lat bottoms, narrows further
+                    let rearV = poly([
+                        (0.380, 0.530), (0.620, 0.530),
+                        (0.572, 0.612), (0.428, 0.612)
+                    ])
 
-                    // Glutes
-                    let lGlute: [(CGFloat, CGFloat)] = [
-                        (0.23, 0.612), (0.50, 0.612), (0.49, 0.702), (0.21, 0.702)
-                    ]
-                    let rGlute: [(CGFloat, CGFloat)] = [
-                        (0.50, 0.612), (0.77, 0.612), (0.79, 0.702), (0.51, 0.702)
-                    ]
+                    // Glutes — 2 rectangles
+                    let lGlute = rRect(0.208, 0.620, 0.280, 0.104)
+                    let rGlute = rRect(0.512, 0.620, 0.280, 0.104)
 
-                    // Hamstrings
-                    let lHam: [(CGFloat, CGFloat)] = [
-                        (0.21, 0.702), (0.49, 0.702), (0.47, 0.826), (0.19, 0.826)
-                    ]
-                    let rHam: [(CGFloat, CGFloat)] = [
-                        (0.51, 0.702), (0.79, 0.702), (0.81, 0.826), (0.53, 0.826)
-                    ]
+                    // Legs — 4 rectangles (upper + lower per side)
+                    let lUL = rRect(0.208, 0.732, 0.280, 0.130)
+                    let rUL = rRect(0.512, 0.732, 0.280, 0.130)
+                    let lLL = rRect(0.224, 0.870, 0.248, 0.118)
+                    let rLL = rRect(0.528, 0.870, 0.248, 0.118)
 
-                    // Calves
-                    let lCalf: [(CGFloat, CGFloat)] = [
-                        (0.19, 0.826), (0.47, 0.826), (0.44, 0.986), (0.17, 0.986)
-                    ]
-                    let rCalf: [(CGFloat, CGFloat)] = [
-                        (0.53, 0.826), (0.81, 0.826), (0.83, 0.986), (0.57, 0.986)
-                    ]
-
-                    // Draw everything muted first
-                    for shape in [neck, lDelt, rDelt, lUA, rUA, lFA, rFA,
-                                  trap, lLat, rLat, lES, rES,
-                                  lGlute, rGlute, lHam, rHam, lCalf, rCalf] {
-                        ctx.fill(poly(shape), with: muted)
-                    }
-                    ctx.fill(Path(ellipseIn: headRect), with: muted)
-
-                    // Highlight: trapezius + lats + erector spinae
-                    for shape in [trap, lLat, rLat, lES, rES] {
-                        ctx.fill(poly(shape), with: lit)
+                    // Draw all shapes, muted by default
+                    ctx.fill(head, with: muted)
+                    for p in [collar, lDelt, rDelt, lArm, rArm,
+                              lLat, rLat, rearV,
+                              lGlute, rGlute,
+                              lUL, rUL, lLL, rLL] {
+                        ctx.fill(p, with: muted)
                     }
 
-                // ── FRONT VIEW (all other groups) ─────────────────────────
-                default:
-                    // Pectorals — wedge shapes from shoulder to sternum
-                    let lPec: [(CGFloat, CGFloat)] = [
-                        (0.14, 0.182), (0.50, 0.192),
-                        (0.47, 0.406), (0.24, 0.422), (0.14, 0.322)
-                    ]
-                    let rPec: [(CGFloat, CGFloat)] = [
-                        (0.86, 0.182), (0.50, 0.192),
-                        (0.53, 0.406), (0.76, 0.422), (0.86, 0.322)
-                    ]
-
-                    // Abdominals — 3 rows × 2 columns of rectangles (6-pack)
-                    let abs1L: [(CGFloat, CGFloat)] = [
-                        (0.32, 0.422), (0.47, 0.422), (0.47, 0.474), (0.32, 0.474)
-                    ]
-                    let abs1R: [(CGFloat, CGFloat)] = [
-                        (0.53, 0.422), (0.68, 0.422), (0.68, 0.474), (0.53, 0.474)
-                    ]
-                    let abs2L: [(CGFloat, CGFloat)] = [
-                        (0.31, 0.482), (0.46, 0.482), (0.46, 0.536), (0.31, 0.536)
-                    ]
-                    let abs2R: [(CGFloat, CGFloat)] = [
-                        (0.54, 0.482), (0.69, 0.482), (0.69, 0.536), (0.54, 0.536)
-                    ]
-                    let abs3L: [(CGFloat, CGFloat)] = [
-                        (0.30, 0.544), (0.45, 0.544), (0.45, 0.598), (0.30, 0.598)
-                    ]
-                    let abs3R: [(CGFloat, CGFloat)] = [
-                        (0.55, 0.544), (0.70, 0.544), (0.70, 0.598), (0.55, 0.598)
-                    ]
-                    let absAll: [[(CGFloat, CGFloat)]] = [
-                        abs1L, abs1R, abs2L, abs2R, abs3L, abs3R
-                    ]
-
-                    // Pelvis / hip band
-                    let pelvis: [(CGFloat, CGFloat)] = [
-                        (0.22, 0.598), (0.78, 0.598), (0.80, 0.658), (0.20, 0.658)
-                    ]
-
-                    // Upper legs — quads, taper toward knee
-                    let lUL: [(CGFloat, CGFloat)] = [
-                        (0.20, 0.658), (0.50, 0.658), (0.48, 0.824), (0.18, 0.824)
-                    ]
-                    let rUL: [(CGFloat, CGFloat)] = [
-                        (0.50, 0.658), (0.80, 0.658), (0.82, 0.824), (0.52, 0.824)
-                    ]
-
-                    // Lower legs — shins, sharper taper
-                    let lLL: [(CGFloat, CGFloat)] = [
-                        (0.18, 0.824), (0.48, 0.824), (0.45, 0.986), (0.16, 0.986)
-                    ]
-                    let rLL: [(CGFloat, CGFloat)] = [
-                        (0.52, 0.824), (0.82, 0.824), (0.84, 0.986), (0.56, 0.986)
-                    ]
-
-                    // Draw everything muted first
-                    for shape in [neck, lDelt, rDelt, lUA, rUA, lFA, rFA,
-                                  lPec, rPec,
-                                  abs1L, abs1R, abs2L, abs2R, abs3L, abs3R,
-                                  pelvis, lUL, rUL, lLL, rLL] {
-                        ctx.fill(poly(shape), with: muted)
-                    }
-                    ctx.fill(Path(ellipseIn: headRect), with: muted)
-
-                    // Highlights per group
+                    // Apply highlights
                     switch muscleGroup {
-                    case .chest:
-                        ctx.fill(poly(lPec), with: lit)
-                        ctx.fill(poly(rPec), with: lit)
-                    case .core:
-                        for shape in absAll { ctx.fill(poly(shape), with: lit) }
+                    case .back:
+                        draw(lLat,   active: true)
+                        draw(rLat,   active: true)
+                        draw(rearV,  active: true)
                     case .arms:
-                        for shape in [lUA, rUA, lFA, rFA] {
-                            ctx.fill(poly(shape), with: lit)
-                        }
+                        draw(lArm,   active: true)
+                        draw(rArm,   active: true)
                     case .legs:
-                        for shape in [lUL, rUL, lLL, rLL] {
-                            ctx.fill(poly(shape), with: lit)
-                        }
+                        draw(lUL,    active: true); draw(rUL, active: true)
+                        draw(lLL,    active: true); draw(rLL, active: true)
                     case .shoulders:
-                        ctx.fill(poly(lDelt), with: lit)
-                        ctx.fill(poly(rDelt), with: lit)
-                    default:
-                        break
+                        draw(lDelt,  active: true)
+                        draw(rDelt,  active: true)
+                    case .chest, .core:
+                        break  // chest/core not visible from back
                     }
                 }
             }
@@ -251,13 +250,26 @@ struct MuscleDiagramView: View {
 }
 
 #Preview {
-    HStack(spacing: 16) {
-        ForEach(MuscleGroup.allCases, id: \.self) { group in
-            VStack(spacing: 4) {
-                MuscleDiagramView(muscleGroup: group, size: 50)
-                Text(group.rawValue)
-                    .font(.caption2)
+    VStack(spacing: 20) {
+        // Small icons (list badge size)
+        HStack(spacing: 12) {
+            ForEach(MuscleGroup.allCases, id: \.self) { group in
+                VStack(spacing: 4) {
+                    MuscleDiagramView(
+                        muscleGroup: group,
+                        side: group == .back ? .back : .front,
+                        size: 50)
+                    Text(group.rawValue).font(.caption2)
+                }
             }
+        }
+
+        // Large front + back pair (detail view size)
+        HStack(spacing: 16) {
+            MuscleDiagramView(muscleGroup: .chest,    side: .front, size: 120)
+            MuscleDiagramView(muscleGroup: .back,     side: .back,  size: 120)
+            MuscleDiagramView(muscleGroup: .legs,     side: .front, size: 120)
+            MuscleDiagramView(muscleGroup: .core,     side: .front, size: 120)
         }
     }
     .padding()
