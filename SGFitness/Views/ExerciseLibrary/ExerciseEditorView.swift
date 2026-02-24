@@ -34,6 +34,14 @@ struct ExerciseEditorView: View {
         Form {
             Section("Exercise Details") {
                 TextField("Exercise Name", text: $name)
+                
+                if (selectedMuscleGroup == .back){
+                    MuscleDiagramView(muscleGroup: selectedMuscleGroup, side: .back, size: 225)
+                        .frame(width: .infinity, alignment: .center)
+                }else{
+                    MuscleDiagramView(muscleGroup: selectedMuscleGroup, side: .front, size: 225)
+                        .frame(width: .infinity, alignment: .center)
+                }
 
                 Picker("Type", selection: $selectedExerciseType) {
                     ForEach(ExerciseType.allCases, id: \.self) { type in

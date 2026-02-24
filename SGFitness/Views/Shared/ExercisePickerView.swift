@@ -138,7 +138,7 @@ struct ExercisePickerView: View {
     @ViewBuilder
     private func exerciseIcon(_ definition: ExerciseDefinition) -> some View {
         if let muscleGroup = definition.muscleGroup {
-            MuscleDiagramView(muscleGroup: muscleGroup, size: 38)
+            MuscleDiagramView(muscleGroup: muscleGroup, side: .front, size: 38)
         } else {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)

@@ -246,7 +246,7 @@ struct TemplateEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 if let muscleGroup = exercise.exerciseDefinition?.muscleGroup {
-                    MuscleDiagramView(muscleGroup: muscleGroup, size: 32)
+                    MuscleDiagramView(muscleGroup: muscleGroup, side: .front, size: 32)
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 7)

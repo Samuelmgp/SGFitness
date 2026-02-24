@@ -15,6 +15,13 @@ struct ExerciseDefinitionDetailView: View {
     @State private var showingEditSheet = false
 
     var body: some View {
+        if (definition.muscleGroup != nil && definition.muscleGroup == .back){
+            MuscleDiagramView(muscleGroup: definition.muscleGroup!, side: .back, size: 225)
+                .frame(alignment: .center)
+        }else if (definition.muscleGroup != nil){
+            MuscleDiagramView(muscleGroup: definition.muscleGroup!, side: .front, size: 225)
+                .frame(alignment: .center)
+        }
         List {
             // MARK: - Header Chips
             Section {

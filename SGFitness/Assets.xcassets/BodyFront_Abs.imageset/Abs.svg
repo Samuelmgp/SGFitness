@@ -1,0 +1,16 @@
+<svg width="210" height="461" viewBox="0 0 210 461" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Left oblique -->
+<path d="M73 157H57V214.75L73 223V157Z" fill="black"/>
+<!-- Right oblique -->
+<path d="M137 157H153V214.75L137 223V157Z" fill="black"/>
+<!-- Left column abs -->
+<rect x="81" y="157" width="20" height="20" fill="black"/>
+<rect x="81" y="180" width="20" height="20" fill="black"/>
+<rect x="81" y="203" width="20" height="20" fill="black"/>
+<!-- Right column abs -->
+<rect x="109" y="157" width="20" height="20" fill="black"/>
+<rect x="109" y="180" width="20" height="20" fill="black"/>
+<rect x="109" y="203" width="20" height="20" fill="black"/>
+<!-- Lower band / V-taper -->
+<path d="M72 233L57 224V247H155V224L136 233H72Z" fill="black"/>
+</svg>

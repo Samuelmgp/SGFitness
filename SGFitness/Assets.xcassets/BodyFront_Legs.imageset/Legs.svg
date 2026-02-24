@@ -1,0 +1,10 @@
+<svg width="210" height="461" viewBox="0 0 210 461" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Left upper leg -->
+<path d="M58 354V259H88V354H58Z" fill="black"/>
+<!-- Left lower leg -->
+<path d="M63 461V366H83V461H63Z" fill="black"/>
+<!-- Right upper leg -->
+<path d="M125 354V259H155V354H125Z" fill="black"/>
+<!-- Right lower leg -->
+<path d="M130 461V366H150V461H130Z" fill="black"/>
+</svg>

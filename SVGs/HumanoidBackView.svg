@@ -1,0 +1,31 @@
+<svg width="210" height="461" viewBox="0 0 210 461" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="HumanoidBackView">
+<g id="Head">
+<circle id="Ellipse 2" cx="104.5" cy="32.5" r="32.5" fill="#C9C9C9"/>
+</g>
+<g id="Shoulders">
+<path id="Vector 1" d="M0 98H60L36.7742 73.0015C18.0702 72.8858 10.5264 79.5145 0 98Z" fill="#C9C9C9"/>
+<path id="Vector 2" d="M210 98H150L173.226 73.0015C191.93 72.8858 199.474 79.5145 210 98Z" fill="#C9C9C9"/>
+</g>
+<g id="Arms">
+<path id="Vector 4" d="M2 202V107H32V202H2Z" fill="#C9C9C9"/>
+<path id="Vector 12" d="M7 294V214H27V294H7Z" fill="#C9C9C9"/>
+<path id="Vector 13" d="M185 294V214H205V294H185Z" fill="#C9C9C9"/>
+<path id="Vector 5" d="M180 202V107H210V202H180Z" fill="#C9C9C9"/>
+</g>
+<g id="Back">
+<path id="Vector 3" d="M74 98L53 73H156L137 98H74Z" fill="#C9C9C9"/>
+<path id="Vector 19" d="M48 107H93V202H60.2727L48 107Z" fill="#C9C9C9"/>
+<path id="Vector 20" d="M162 107H117V202H149.727L162 107Z" fill="#C9C9C9"/>
+<path id="Vector 21" d="M150 208H63V228H150V208Z" fill="#C9C9C9"/>
+</g>
+<g id="Legs">
+<path id="Vector 14" d="M58 354V259H88V354H58Z" fill="#C9C9C9"/>
+<path id="Vector 16" d="M63 461V366H83V461H63Z" fill="#C9C9C9"/>
+<path id="Vector 15" d="M125 354V259H155V354H125Z" fill="#C9C9C9"/>
+<path id="Vector 17" d="M130 461V366H150V461H130Z" fill="#C9C9C9"/>
+<path id="Vector 22" d="M48 253V233H100V253H48Z" fill="#C9C9C9"/>
+<path id="Vector 23" d="M110 253V233H162V253H110Z" fill="#C9C9C9"/>
+</g>
+</g>
+</svg>

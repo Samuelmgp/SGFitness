@@ -1,0 +1,10 @@
+<svg width="210" height="461" viewBox="0 0 210 461" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Left upper arm -->
+<path d="M2 202V107H32V202H2Z" fill="black"/>
+<!-- Left forearm -->
+<path d="M7 294V214H27V294H7Z" fill="black"/>
+<!-- Right forearm -->
+<path d="M185 294V214H205V294H185Z" fill="black"/>
+<!-- Right upper arm -->
+<path d="M180 202V107H210V202H180Z" fill="black"/>
+</svg>

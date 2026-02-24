@@ -45,7 +45,7 @@ struct ExerciseCardView: View {
                 HStack(spacing: 10) {
                     // Muscle-group body diagram or cardio SF symbol badge
                     if let muscleGroup = exercise.exerciseDefinition?.muscleGroup {
-                        MuscleDiagramView(muscleGroup: muscleGroup, size: 32)
+                        MuscleDiagramView(muscleGroup: muscleGroup, side: .front, size: 32)
                     } else {
                         let iconColor = Color.secondary
                         ZStack {

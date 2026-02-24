@@ -1,0 +1,10 @@
+<svg width="210" height="461" viewBox="0 0 210 461" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Collar / trapezius -->
+<path d="M74 98L53 73H156L137 98H74Z" fill="black"/>
+<!-- Left lat -->
+<path d="M48 107H93V202H60.2727L48 107Z" fill="black"/>
+<!-- Right lat -->
+<path d="M162 107H117V202H149.727L162 107Z" fill="black"/>
+<!-- Lower back band -->
+<path d="M150 208H63V228H150V208Z" fill="black"/>
+</svg>
