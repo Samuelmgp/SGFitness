@@ -21,9 +21,6 @@ struct ExerciseCardView: View {
     let onRemoveExercise: (() -> Void)?
 
     @State private var showingAddSet = false
-    @State private var newSetReps: String = "10"
-    @State private var newSetWeight: String = ""
-    @State private var newSetDuration: String = ""
     @State private var headerSwiped = false
 
     private var isCardio: Bool {
@@ -144,15 +141,6 @@ struct ExerciseCardView: View {
 
             // MARK: - Add Set
             Button {
-                if isCardio {
-                    let last = sortedSets.last
-                    newSetReps = last.map { "\($0.reps)" } ?? "800"
-                    newSetDuration = last?.durationSeconds.map { formatDuration($0) } ?? ""
-                } else {
-                    let last = sortedSets.last
-                    newSetReps = last.map { "\($0.reps)" } ?? "10"
-                    newSetWeight = last?.weight.map { displayWeight($0) } ?? ""
-                }
                 showingAddSet = true
             } label: {
                 Label("Add Set", systemImage: "plus.circle")
@@ -163,35 +151,24 @@ struct ExerciseCardView: View {
         .padding()
         .background(.fill.quaternary)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .alert(isCardio ? "Log Cardio Set" : "Log Set", isPresented: $showingAddSet) {
-            if isCardio {
-                TextField("Distance (m)", text: $newSetReps)
-                    .keyboardType(.numberPad)
-                    .keyboardShortcut(.defaultAction)
-                TextField("Duration (mm:ss)", text: $newSetDuration)
-                Button("Cancel", role: .cancel) {}
-                Button("Log") {
-                    let distance = Int(newSetReps) ?? 0
-                    guard let duration = parseDuration(newSetDuration), distance > 0 else { return }
-                    onLogSet(distance, nil, duration)
-                }
-            } else {
-                TextField("Reps", text: $newSetReps)
-                    .keyboardType(.numberPad)
-                    .keyboardShortcut(.defaultAction)
-                TextField("Weight (\(weightUnit.displayName), optional)", text: $newSetWeight)
-                    .keyboardType(.decimalPad)
-                    .keyboardShortcut(.defaultAction)
-                Button("Cancel", role: .cancel) {}
-                Button("Log") {
-                    let reps = Int(newSetReps) ?? 0
-                    guard reps > 0 else { return }
-                    let weightKg = Double(newSetWeight).map { weightUnit.toKilograms($0) }
-                    onLogSet(reps, weightKg, nil)
-                }
+        .sheet(isPresented: $showingAddSet) {
+            let last = sortedSets.last
+            let initReps    = isCardio ? (last.map { "\($0.reps)" } ?? "800") : (last.map { "\($0.reps)" } ?? "10")
+            let initWeight  = last?.weight.map { displayWeight($0) } ?? ""
+            let initDuration = last?.durationSeconds.map { formatDuration($0) } ?? ""
+
+            AddSetSheet(
+                isCardio: isCardio,
+                weightUnit: weightUnit,
+                initialReps: initReps,
+                initialWeight: initWeight,
+                initialDuration: initDuration
+            ) { reps, weightKg, durationSeconds in
+                onLogSet(reps, weightKg, durationSeconds)
             }
-        } message: {
-            Text(isCardio ? "Enter distance and time for this set." : "Enter reps and weight for this set.")
+            .presentationDetents([.height(320)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(20)
         }
     }
 
@@ -202,6 +179,142 @@ struct ExerciseCardView: View {
 
     private func formatDuration(_ seconds: Int) -> String {
         String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private func parseDuration(_ str: String) -> Int? {
+        let parts = str.split(separator: ":").map { String($0) }
+        if parts.count == 2, let m = Int(parts[0]), let s = Int(parts[1]) { return m * 60 + s }
+        if parts.count == 1, let t = Int(parts[0]) { return t }
+        return nil
+    }
+}
+
+// MARK: - AddSetSheet
+//
+// Half-sheet presented when the user taps "Add Set" on an ExerciseCardView.
+// Replaces the old .alert to give labelled fields, a numeric keyboard that
+// stays visible, and a prominent action button.
+
+private struct AddSetSheet: View {
+
+    let isCardio:   Bool
+    let weightUnit: WeightUnit
+    let onLog:      (Int, Double?, Int?) -> Void
+
+    @State private var reps:     String
+    @State private var weight:   String
+    @State private var duration: String
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: InputField?
+
+    private enum InputField { case primary, secondary }
+
+    init(isCardio: Bool,
+         weightUnit: WeightUnit,
+         initialReps: String,
+         initialWeight: String,
+         initialDuration: String,
+         onLog: @escaping (Int, Double?, Int?) -> Void) {
+        self.isCardio   = isCardio
+        self.weightUnit = weightUnit
+        self.onLog      = onLog
+        _reps           = State(initialValue: initialReps)
+        _weight         = State(initialValue: initialWeight)
+        _duration       = State(initialValue: initialDuration)
+    }
+
+    private var canLog: Bool {
+        if isCardio {
+            return (Int(reps) ?? 0) > 0 && parseDuration(duration) != nil
+        }
+        return (Int(reps) ?? 0) > 0
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+
+                // Primary field — Reps (strength) or Distance in metres (cardio)
+                inputField(
+                    label:    isCardio ? "Distance (m)" : "Reps",
+                    text:     $reps,
+                    keyboard: .numberPad,
+                    field:    .primary
+                )
+
+                // Secondary field — Weight (strength, optional) or Duration mm:ss (cardio)
+                inputField(
+                    label:    isCardio ? "Duration (mm:ss)" : "Weight (\(weightUnit.displayName), optional)",
+                    text:     isCardio ? $duration : $weight,
+                    keyboard: isCardio ? .default : .decimalPad,
+                    field:    .secondary
+                )
+
+                Spacer()
+
+                Button {
+                    commitLog()
+                } label: {
+                    Text("Log Set")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!canLog)
+            }
+            .padding(20)
+            .navigationTitle(isCardio ? "Log Cardio Set" : "Log Set")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            // Brief delay lets the sheet animate in before the keyboard rises.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                focused = .primary
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func inputField(label: String,
+                            text: Binding<String>,
+                            keyboard: UIKeyboardType,
+                            field: InputField) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            TextField(label, text: text)
+                .keyboardType(keyboard)
+                .font(.title3)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(.fill.quaternary)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .focused($focused, equals: field)
+        }
+    }
+
+    private func commitLog() {
+        if isCardio {
+            let dist = Int(reps) ?? 0
+            guard let dur = parseDuration(duration), dist > 0 else { return }
+            onLog(dist, nil, dur)
+        } else {
+            let r = Int(reps) ?? 0
+            guard r > 0 else { return }
+            let weightKg = Double(weight).map { weightUnit.toKilograms($0) }
+            onLog(r, weightKg, nil)
+        }
+        dismiss()
     }
 
     private func parseDuration(_ str: String) -> Int? {
