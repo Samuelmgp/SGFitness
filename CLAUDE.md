@@ -68,7 +68,7 @@ All ViewModels use `@Observable` (Observation framework), **not** `ObservableObj
 - `bootstrapUser()` runs once on first launch: creates User, seeds 27 exercises across 6 muscle groups, creates 3 example templates.
 - Active workout presented via `.fullScreenCover`; exercise picker via `.sheet`.
 - Navigation uses `NavigationStack` + `NavigationLink(value:)` + `.navigationDestination(for:)`.
-- Input for reps/weight uses SwiftUI `.alert` with `TextField`.
+- Input for reps/weight uses **`.sheet` with a private struct** (not `.alert`). Sheets decouple the dismiss animation from the parent `@Observable` re-render, avoiding a visible hitch when SwiftData mutations fire during alert dismiss.
 - Empty states use `ContentUnavailableView`.
 
 **HomeView** — 3 action buttons:
@@ -87,7 +87,8 @@ All ViewModels use `@Observable` (Observation framework), **not** `ObservableObj
 
 **ExerciseCardView / SetCircleRow** — accept `weightUnit`, `onRemoveSet`, `onDeselectSet` parameters.
 - Circle button tap: completed set → `onDeselectSet`; incomplete set → `onComplete` with current values.
-- Long-press: opens edit alert for **both** complete and incomplete sets. Alert title = "Edit Set" / "Edit & Complete"; button = "Save" / "Complete".
+- Long-press: opens `EditSetSheet` (half-sheet) for both complete and incomplete sets. Title = "Edit Set" / "Edit & Complete"; button = "Save" / "Complete".
+- "Add Set" button opens `AddSetSheet` (half-sheet). Both sheets live as `private struct` in `ExerciseRowView.swift`.
 - Swipe left (when `onRemoveSet` provided): reveals a red Delete button via `DragGesture(minimumDistance: 20)` registered with `.simultaneousGesture` (avoids consuming vertical scroll).
 - All sets start pre-completed in "Log from Template" mode (unique to that flow).
 
@@ -143,14 +144,17 @@ There are **two different** detail views:
 PRs are stored as `PersonalRecord` SwiftData `@Model` objects and managed by `PersonalRecordService`.
 
 - `PersonalRecordService` evaluates gold/silver/bronze podium records per `(ExerciseDefinition, recordType, distanceMeters)` bucket.
-- Strength record types: `.maxWeight` (highest weight + reps) and `.bestVolume` (sum of reps × weight across sets).
+- Strength record types: `.maxWeight` (highest weight; tie-break by reps descending) and `.bestVolume` (sum of reps × weight across sets).
 - Cardio record type: `.cardioTime` keyed by distance in meters; lower duration is better.
+- `rerankPRs()` sort for `higherIsBetter`: primary `valueKg` descending, tie-break `reps` descending. This ensures 100 lb × 10 reps ranks above 100 lb × 7 reps.
 - `PersonalRecord.workoutSession` uses `.nullify` delete rule (no inverse declared on `WorkoutSession`) — `WorkoutHistoryViewModel.deleteSession()` manually deletes linked PRs before deleting the session, then calls `rebuildAllPRs()`.
 - `rebuildAllPRs()` deletes all PR records, **saves** (critical — avoids stale SwiftData relationship cache causing the idempotency guard to false-positive), then replays all completed sessions chronologically.
 - At most 3 records per bucket; `rerankPRs()` sorts candidates, keeps top 3, assigns medals, deletes the rest.
-- `ActiveWorkoutViewModel` caches pre-workout baselines in `prBaselines: [UUID: PRBaseline]` (marked `@ObservationIgnored`). After each set, `checkForPR()` compares against baseline and sets `latestPRAlert` if beaten.
+- `ActiveWorkoutViewModel` caches pre-workout baselines in `prBaselines: [UUID: PRBaseline]` (marked `@ObservationIgnored`). `PRBaseline` tracks `maxWeightKg`, `maxRepsAtMaxWeight` (for same-weight higher-rep PR detection), and `bestVolumeKg`.
+- `checkForPR()` fires on strictly higher weight OR same weight with more reps (`maxRepsAtMaxWeight`). Both paths update the baseline so subsequent sets compare correctly.
 - `ActiveWorkoutView` observes `latestPRAlert` and shows a 3-second animated banner, then calls `viewModel.clearPRAlert()`.
 - `YearGridViewModel.prDates` marks days where a new PR weight was set (strength only); displayed as a yellow border on the calendar day cell.
+- **PR rebuild on history edit**: `WorkoutDetailViewModel` holds a `PersonalRecordService` and a `needsPRRebuild: Bool` flag. Any mutation to performed-set data (`updateSet`, `addSet`, `removeSet`, `removeExercise`) sets the flag. `save()` calls `rebuildAllPRs()` if the flag is set, ensuring PRs stay accurate after editing a completed workout.
 
 ### Cardio Exercises
 
@@ -228,6 +232,26 @@ SGFitness/
     WorkoutHistory/
       YearGridView.swift          — yellow border on PR days
       YearGridViewModel.swift
+      WorkoutDetailView.swift     — read + edit mode; Add/Edit set via DetailAddSetSheet/DetailEditSetSheet (sheets, not alerts)
+      WorkoutDetailViewModel.swift — needsPRRebuild flag; calls rebuildAllPRs() in save() when set data changed
     ProfileView.swift             — Settings, Goals (edit sheet), Body Measurements, Stats, Library sections
     OnboardingView.swift          — name, unit, height (wheel pickers), body weight, workout goals
 ```
+
+### Sheet Pattern for Reps/Weight Input
+
+All reps/weight input uses a half-sheet instead of `.alert`. Pattern used in `ExerciseRowView.swift` (`AddSetSheet`, `EditSetSheet`) and `WorkoutDetailView.swift` (`DetailAddSetSheet`, `DetailEditSetSheet`):
+- `private struct` owns its own `@State` for field values, initialized via `State(initialValue:)` in a custom `init`
+- `@FocusState` auto-focuses primary field after 0.35 s delay (lets sheet animate in first)
+- `.presentationDetents([.height(280–320)])` + `.presentationDragIndicator(.visible)` + `.presentationCornerRadius(20)`
+- Parent sets an `item` or `isPresented` binding; initial values are computed in the sheet closure and passed to the struct init
+- **Do not use `.alert` with `TextField`** — alert dismiss + `@Observable` re-render fire simultaneously, causing a visible hitch
+
+### Muscle Diagram (MuscleDiagramView)
+
+SVG asset layers in `Assets.xcassets/` — 11 imagesets, all sharing `viewBox="0 0 210 461"` with `fill="black"` for template rendering:
+- Front: `BodyFront_Head`, `BodyFront_Shoulders`, `BodyFront_Arms`, `BodyFront_Chest`, `BodyFront_Abs`, `BodyFront_Legs`
+- Back: `BodyBack_Head`, `BodyBack_Shoulders`, `BodyBack_Arms`, `BodyBack_Back`, `BodyBack_Legs`
+
+`MuscleDiagramView` stacks layers in a `ZStack` using `Image(name).renderingMode(.template).foregroundStyle(active ? muscleGroup.color : muted)`. All assets share the same viewBox so no offset math is needed. `size` = icon height; `iconW = size × (210/461)`.
+`DiagramSide` enum (`.front` / `.back`) — callers pass the appropriate side; back muscles use `.back`.
