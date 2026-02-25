@@ -33,6 +33,7 @@ struct ExerciseConfigView: View {
                     Spacer()
                     TextField("Optional", text: $weightText)
                         .keyboardType(.decimalPad)
+                        .keyboardShortcut(.defaultAction)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
                     Text(weightUnit.rawValue)

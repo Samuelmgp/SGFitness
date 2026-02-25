@@ -50,7 +50,7 @@ struct MuscleDiagramView: View {
             case .back:  backBody
             }
         }
-        .frame(width: iconW, height: size)
+        .frame(width: size, height: size)
     }
 
     // ── Front layers (bottom → top) ────────────────────────────────────────
@@ -87,7 +87,7 @@ struct MuscleDiagramView: View {
             .renderingMode(.template)
             .resizable()
             .foregroundStyle(active ? lit : muted)
-            .frame(width: iconW, height: size)
+            .frame(width: iconW * 0.85, height: size * 0.85)
     }
 }
 

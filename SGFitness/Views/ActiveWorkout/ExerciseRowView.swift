@@ -45,7 +45,7 @@ struct ExerciseCardView: View {
                 HStack(spacing: 10) {
                     // Muscle-group body diagram or cardio SF symbol badge
                     if let muscleGroup = exercise.exerciseDefinition?.muscleGroup {
-                        MuscleDiagramView(muscleGroup: muscleGroup, side: .front, size: 32)
+                        muscleGroup != .back ? MuscleDiagramView(muscleGroup: muscleGroup, side: .front, size: 32) : MuscleDiagramView(muscleGroup: muscleGroup, side: .back, size: 32)
                     } else {
                         let iconColor = Color.secondary
                         ZStack {
@@ -57,9 +57,13 @@ struct ExerciseCardView: View {
                                 .foregroundStyle(iconColor)
                         }
                     }
-
-                    Text(exercise.name)
-                        .font(.headline)
+                    VStack(alignment: .leading, spacing: 2){
+                        Text(exercise.name)
+                            .font(.headline)
+                        Text(exercise.exerciseDefinition?.equipment ?? "Unknown Equiptment")
+                            .font(.footnote)
+                            .fontWeight(.light)
+                    }
                     Spacer()
                     if allSetsComplete && !headerSwiped {
                         Image(systemName: "checkmark.circle.fill")
@@ -163,6 +167,7 @@ struct ExerciseCardView: View {
             if isCardio {
                 TextField("Distance (m)", text: $newSetReps)
                     .keyboardType(.numberPad)
+                    .keyboardShortcut(.defaultAction)
                 TextField("Duration (mm:ss)", text: $newSetDuration)
                 Button("Cancel", role: .cancel) {}
                 Button("Log") {
@@ -173,8 +178,10 @@ struct ExerciseCardView: View {
             } else {
                 TextField("Reps", text: $newSetReps)
                     .keyboardType(.numberPad)
+                    .keyboardShortcut(.defaultAction)
                 TextField("Weight (\(weightUnit.displayName), optional)", text: $newSetWeight)
                     .keyboardType(.decimalPad)
+                    .keyboardShortcut(.defaultAction)
                 Button("Cancel", role: .cancel) {}
                 Button("Log") {
                     let reps = Int(newSetReps) ?? 0

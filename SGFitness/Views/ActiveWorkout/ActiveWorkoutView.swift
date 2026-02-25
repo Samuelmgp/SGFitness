@@ -200,10 +200,11 @@ struct ActiveWorkoutView: View {
     /// Color for the timer ring based on how far through the target duration.
     private func timerColor(for progress: Double) -> Color {
         switch progress {
-        case ..<0.5: return .green
+        case ..<0.25: return .red
+        case 0.25..<0.5: return .orange
         case 0.5..<0.75: return .yellow
-        case 0.75..<1.0: return .orange
-        default: return .red
+        case 0.75..<1.0: return .green
+        default: return .purple
         }
     }
 
