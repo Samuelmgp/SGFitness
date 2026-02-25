@@ -325,6 +325,138 @@ private struct AddSetSheet: View {
     }
 }
 
+// MARK: - EditSetSheet
+//
+// Half-sheet for editing an existing set's values (long-press on a SetCircleRow).
+// When wasCompleted is false the button reads "Complete" and tapping it both
+// saves the new values and marks the set complete — matching the old alert behaviour.
+
+private struct EditSetSheet: View {
+
+    let isCardio:     Bool
+    let weightUnit:   WeightUnit
+    let wasCompleted: Bool
+    let onSave:       (Int, Double?, Int?) -> Void
+
+    @State private var reps:     String
+    @State private var weight:   String
+    @State private var duration: String
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: InputField?
+
+    private enum InputField { case primary, secondary }
+
+    init(isCardio: Bool,
+         weightUnit: WeightUnit,
+         wasCompleted: Bool,
+         initialReps: String,
+         initialWeight: String,
+         initialDuration: String,
+         onSave: @escaping (Int, Double?, Int?) -> Void) {
+        self.isCardio     = isCardio
+        self.weightUnit   = weightUnit
+        self.wasCompleted = wasCompleted
+        self.onSave       = onSave
+        _reps     = State(initialValue: initialReps)
+        _weight   = State(initialValue: initialWeight)
+        _duration = State(initialValue: initialDuration)
+    }
+
+    private var canSave: Bool {
+        if isCardio { return (Int(reps) ?? 0) > 0 && parseDuration(duration) != nil }
+        return (Int(reps) ?? 0) > 0
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+
+                inputField(
+                    label:    isCardio ? "Distance (m)" : "Reps",
+                    text:     $reps,
+                    keyboard: .numberPad,
+                    field:    .primary
+                )
+
+                inputField(
+                    label:    isCardio ? "Duration (mm:ss)" : "Weight (\(weightUnit.displayName), optional)",
+                    text:     isCardio ? $duration : $weight,
+                    keyboard: isCardio ? .default : .decimalPad,
+                    field:    .secondary
+                )
+
+                Spacer()
+
+                Button {
+                    commitSave()
+                } label: {
+                    Text(wasCompleted ? "Save" : "Complete")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!canSave)
+            }
+            .padding(20)
+            .navigationTitle(wasCompleted ? "Edit Set" : "Edit & Complete")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                focused = .primary
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func inputField(label: String,
+                            text: Binding<String>,
+                            keyboard: UIKeyboardType,
+                            field: InputField) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            TextField(label, text: text)
+                .keyboardType(keyboard)
+                .font(.title3)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(.fill.quaternary)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .focused($focused, equals: field)
+        }
+    }
+
+    private func commitSave() {
+        if isCardio {
+            let dist = Int(reps) ?? 0
+            guard let dur = parseDuration(duration), dist > 0 else { return }
+            onSave(dist, nil, dur)
+        } else {
+            let r = Int(reps) ?? 0
+            guard r > 0 else { return }
+            let weightKg = Double(weight).map { weightUnit.toKilograms($0) }
+            onSave(r, weightKg, nil)
+        }
+        dismiss()
+    }
+
+    private func parseDuration(_ str: String) -> Int? {
+        let parts = str.split(separator: ":").map { String($0) }
+        if parts.count == 2, let m = Int(parts[0]), let s = Int(parts[1]) { return m * 60 + s }
+        if parts.count == 1, let t = Int(parts[0]) { return t }
+        return nil
+    }
+}
+
 // MARK: - SetCircleRow
 //
 // Displays a single set row with:
@@ -396,31 +528,20 @@ struct SetCircleRow: View {
                     }
                 }
         )
-        .alert(
-            editingWasCompleted ? "Edit Set" : "Edit & Complete",
-            isPresented: $showingEdit
-        ) {
-            if isCardio {
-                TextField("Distance (m)", text: $editReps).keyboardType(.numberPad)
-                TextField("Duration (mm:ss)", text: $editDuration)
-                Button("Cancel", role: .cancel) {}
-                Button(editingWasCompleted ? "Save" : "Complete") {
-                    let reps = Int(editReps) ?? set.reps
-                    let duration = parseDuration(editDuration) ?? set.durationSeconds
-                    onComplete(reps, nil, duration)
-                }
-            } else {
-                TextField("Reps", text: $editReps).keyboardType(.numberPad)
-                TextField("Weight (\(weightUnit.displayName), optional)", text: $editWeight).keyboardType(.decimalPad)
-                Button("Cancel", role: .cancel) {}
-                Button(editingWasCompleted ? "Save" : "Complete") {
-                    let reps = Int(editReps) ?? set.reps
-                    let weightKg = Double(editWeight).map { weightUnit.toKilograms($0) }
-                    onComplete(reps, weightKg, nil)
-                }
+        .sheet(isPresented: $showingEdit) {
+            EditSetSheet(
+                isCardio: isCardio,
+                weightUnit: weightUnit,
+                wasCompleted: editingWasCompleted,
+                initialReps: editReps,
+                initialWeight: editWeight,
+                initialDuration: editDuration
+            ) { reps, weightKg, durationSeconds in
+                onComplete(reps, weightKg, durationSeconds)
             }
-        } message: {
-            Text(editingWasCompleted ? "Adjust the recorded values." : "Adjust values before completing.")
+            .presentationDetents([.height(320)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(20)
         }
     }
 
