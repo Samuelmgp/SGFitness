@@ -220,7 +220,12 @@ final class PersonalRecordService {
         // 4. Build combined list and sort
         var combined = existingForBucket + [candidate]
         if higherIsBetter {
-            combined.sort { ($0.valueKg ?? 0) > ($1.valueKg ?? 0) }
+            // Primary: higher valueKg wins. Tie-break: more reps wins (same weight, more reps = better PR).
+            combined.sort { a, b in
+                let va = a.valueKg ?? 0, vb = b.valueKg ?? 0
+                if abs(va - vb) > 0.001 { return va > vb }
+                return (a.reps ?? 0) > (b.reps ?? 0)
+            }
         } else {
             combined.sort { ($0.durationSeconds ?? Int.max) < ($1.durationSeconds ?? Int.max) }
         }
