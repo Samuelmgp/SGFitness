@@ -44,6 +44,9 @@ import Observation
 
 struct PRBaseline {
     var maxWeightKg: Double?
+    /// Highest reps recorded at maxWeightKg across all past sessions.
+    /// Used to detect PRs when weight ties but reps increase.
+    var maxRepsAtMaxWeight: Int?
     var bestVolumeKg: Double?
 }
 
@@ -920,14 +923,26 @@ final class ActiveWorkoutViewModel: Identifiable {
         }
 
         var maxWeight: Double?
+        var maxRepsAtMaxWeight: Int?
         var bestVolume: Double?
 
         for session in completedSessions {
             let sets = session.performedSets.filter(\.isCompleted)
 
-            let sessionMax = sets.compactMap(\.weight).max()
-            if let m = sessionMax, (maxWeight == nil || m > maxWeight!) {
-                maxWeight = m
+            if let sessionMax = sets.compactMap(\.weight).max() {
+                if maxWeight == nil || sessionMax > maxWeight! {
+                    maxWeight = sessionMax
+                    // Reset reps tracking for the new heavier weight.
+                    maxRepsAtMaxWeight = sets
+                        .filter { abs(($0.weight ?? 0) - sessionMax) < 0.001 }
+                        .map(\.reps).max()
+                } else if let mw = maxWeight, abs(sessionMax - mw) < 0.001 {
+                    // Same max weight — see if this session achieved more reps at that weight.
+                    let repsHere = sets
+                        .filter { abs(($0.weight ?? 0) - mw) < 0.001 }
+                        .map(\.reps).max() ?? 0
+                    maxRepsAtMaxWeight = max(maxRepsAtMaxWeight ?? 0, repsHere)
+                }
             }
 
             let vol = sets.reduce(0.0) { $0 + (($1.weight ?? 0) * Double($1.reps)) }
@@ -936,7 +951,7 @@ final class ActiveWorkoutViewModel: Identifiable {
             }
         }
 
-        prBaselines[defId] = PRBaseline(maxWeightKg: maxWeight, bestVolumeKg: bestVolume)
+        prBaselines[defId] = PRBaseline(maxWeightKg: maxWeight, maxRepsAtMaxWeight: maxRepsAtMaxWeight, bestVolumeKg: bestVolume)
     }
 
     /// Check if the most recent set for the exercise at `exerciseIndex` is a new PR.
@@ -949,16 +964,21 @@ final class ActiveWorkoutViewModel: Identifiable {
         let defId = definition.id
         guard var baseline = prBaselines[defId] else { return }
 
-        // Max weight check
+        // Max weight check — also fires when weight ties but reps increase.
         if let weight = weight, weight > 0 {
-            if baseline.maxWeightKg == nil || weight > baseline.maxWeightKg! {
+            let isNewMaxWeight = baseline.maxWeightKg == nil || weight > baseline.maxWeightKg!
+            let isMoreRepsAtSameWeight = baseline.maxWeightKg.map { abs(weight - $0) < 0.001 } == true
+                && reps > (baseline.maxRepsAtMaxWeight ?? 0)
+
+            if isNewMaxWeight || isMoreRepsAtSameWeight {
                 let unit = preferredWeightUnit
                 let displayWeight = unit.fromKilograms(weight)
-                latestPRAlert = PRAlert(
-                    exerciseName: exercise.name,
-                    metric: "Max weight: \(formatWeightForAlert(displayWeight)) \(unit.rawValue)"
-                )
-                baseline.maxWeightKg = weight
+                let metric = isNewMaxWeight
+                    ? "Max weight: \(formatWeightForAlert(displayWeight)) \(unit.rawValue)"
+                    : "Max weight: \(formatWeightForAlert(displayWeight)) \(unit.rawValue) × \(reps) reps"
+                latestPRAlert = PRAlert(exerciseName: exercise.name, metric: metric)
+                if isNewMaxWeight { baseline.maxWeightKg = weight }
+                baseline.maxRepsAtMaxWeight = reps
                 prBaselines[defId] = baseline
                 return
             }

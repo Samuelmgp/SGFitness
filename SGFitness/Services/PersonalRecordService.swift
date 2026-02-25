@@ -95,9 +95,12 @@ final class PersonalRecordService {
 
         let achievedAt = workoutSession.completedAt ?? workoutSession.startedAt
 
-        // Max weight: highest weight set + reps at that weight
-        if let maxWeightSet = completedSets.filter({ ($0.weight ?? 0) > 0 }).max(by: { ($0.weight ?? 0) < ($1.weight ?? 0) }),
-           let weight = maxWeightSet.weight {
+        // Max weight: highest weight set; break ties by highest reps.
+        if let maxWeightSet = completedSets.filter({ ($0.weight ?? 0) > 0 }).max(by: { a, b in
+            let wa = a.weight ?? 0, wb = b.weight ?? 0
+            if abs(wa - wb) > 0.001 { return wa < wb }
+            return a.reps < b.reps   // same weight → more reps wins
+        }), let weight = maxWeightSet.weight {
             rerankPRs(
                 definition: definition,
                 recordType: .maxWeight,
@@ -217,7 +220,12 @@ final class PersonalRecordService {
         // 4. Build combined list and sort
         var combined = existingForBucket + [candidate]
         if higherIsBetter {
-            combined.sort { ($0.valueKg ?? 0) > ($1.valueKg ?? 0) }
+            // Primary: higher valueKg wins. Tie-break: more reps wins (same weight, more reps = better PR).
+            combined.sort { a, b in
+                let va = a.valueKg ?? 0, vb = b.valueKg ?? 0
+                if abs(va - vb) > 0.001 { return va > vb }
+                return (a.reps ?? 0) > (b.reps ?? 0)
+            }
         } else {
             combined.sort { ($0.durationSeconds ?? Int.max) < ($1.durationSeconds ?? Int.max) }
         }

@@ -10,12 +10,17 @@ import Observation
 final class WorkoutDetailViewModel {
 
     private let modelContext: ModelContext
+    private let prService: PersonalRecordService
 
     /// The session being viewed/edited.
     let session: WorkoutSession
 
     /// Read vs edit mode toggle. UI-only.
     var isEditing: Bool = false
+
+    /// Set to true by any mutation that changes PerformedSet data so that
+    /// save() knows to trigger a full PR rebuild on the way out of edit mode.
+    private var needsPRRebuild = false
 
     /// Exercises sorted by order.
     var exercises: [ExerciseSession] {
@@ -52,6 +57,7 @@ final class WorkoutDetailViewModel {
 
     init(modelContext: ModelContext, session: WorkoutSession) {
         self.modelContext = modelContext
+        self.prService = PersonalRecordService(modelContext: modelContext)
         self.session = session
     }
 
@@ -63,6 +69,7 @@ final class WorkoutDetailViewModel {
         set.reps = reps
         set.weight = weight
         session.updatedAt = .now
+        needsPRRebuild = true
     }
 
     /// Append a completed set to the given exercise.
@@ -78,6 +85,7 @@ final class WorkoutDetailViewModel {
         )
         modelContext.insert(set)
         session.updatedAt = .now
+        needsPRRebuild = true
     }
 
     /// Delete a set and recompute contiguous order on survivors.
@@ -89,6 +97,7 @@ final class WorkoutDetailViewModel {
         modelContext.delete(set)
         for (newOrder, s) in remaining.enumerated() { s.order = newOrder }
         session.updatedAt = .now
+        needsPRRebuild = true
     }
 
     /// Add an exercise from the catalog to this session.
@@ -110,6 +119,7 @@ final class WorkoutDetailViewModel {
         modelContext.delete(exercise)
         for (newOrder, ex) in remaining.enumerated() { ex.order = newOrder }
         session.updatedAt = .now
+        needsPRRebuild = true
     }
 
     func updateEffort(_ exercise: ExerciseSession, effort: Int) {
@@ -128,6 +138,10 @@ final class WorkoutDetailViewModel {
             try modelContext.save()
         } catch {
             print("[WorkoutDetailViewModel] Failed to save: \(error)")
+        }
+        if needsPRRebuild {
+            prService.rebuildAllPRs()
+            needsPRRebuild = false
         }
     }
 

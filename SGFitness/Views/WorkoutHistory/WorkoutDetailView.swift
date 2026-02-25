@@ -22,17 +22,11 @@ struct WorkoutDetailView: View {
     // Exercise picker (add exercise) — item-based sheet so data is always ready on first render
     @State private var exercisePickerVM: ExercisePickerViewModel?
 
-    // Add set alert
-    @State private var showingAddSet = false
-    @State private var addSetExercise: ExerciseSession?
-    @State private var addSetReps: String = "10"
-    @State private var addSetWeight: String = ""
+    // Add set sheet — item drives presentation
+    @State private var addSetForExercise: ExerciseSession?
 
-    // Edit set alert
-    @State private var showingEditSet = false
+    // Edit set sheet — item drives presentation
     @State private var editingSet: PerformedSet?
-    @State private var editSetReps: String = ""
-    @State private var editSetWeight: String = ""
 
     var body: some View {
         ScrollView {
@@ -98,35 +92,34 @@ struct WorkoutDetailView: View {
         } message: {
             Text("\"\(viewModel.session.name)\" has been added to your Templates.")
         }
-        .alert("Add Set", isPresented: $showingAddSet) {
-            TextField("Reps", text: $addSetReps)
-                .keyboardType(.numberPad)
-            TextField("Weight (\(viewModel.preferredWeightUnit.rawValue), optional)", text: $addSetWeight)
-                .keyboardType(.decimalPad)
-            Button("Cancel", role: .cancel) {}
-            Button("Add") {
-                guard let exercise = addSetExercise,
-                      let reps = Int(addSetReps), reps > 0 else { return }
-                let weightKg = Double(addSetWeight).map { viewModel.preferredWeightUnit.toKilograms($0) }
+        .sheet(item: $addSetForExercise) { exercise in
+            let sortedSets = exercise.performedSets.sorted { $0.order < $1.order }
+            let initReps   = sortedSets.last.map { "\($0.reps)" } ?? "10"
+            let initWeight = sortedSets.last?.weight.map { formatWeightForInput($0) } ?? ""
+            DetailAddSetSheet(
+                weightUnit: viewModel.preferredWeightUnit,
+                initialReps: initReps,
+                initialWeight: initWeight
+            ) { reps, weightKg in
                 viewModel.addSet(to: exercise, reps: reps, weight: weightKg)
             }
-        } message: {
-            Text("Enter reps and weight for this set.")
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(20)
         }
-        .alert("Edit Set", isPresented: $showingEditSet) {
-            TextField("Reps", text: $editSetReps)
-                .keyboardType(.numberPad)
-            TextField("Weight (\(viewModel.preferredWeightUnit.rawValue), optional)", text: $editSetWeight)
-                .keyboardType(.decimalPad)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") {
-                guard let set = editingSet,
-                      let reps = Int(editSetReps), reps > 0 else { return }
-                let weightKg = Double(editSetWeight).map { viewModel.preferredWeightUnit.toKilograms($0) }
+        .sheet(item: $editingSet) { set in
+            let initReps   = "\(set.reps)"
+            let initWeight = set.weight.map { formatWeightForInput($0) } ?? ""
+            DetailEditSetSheet(
+                weightUnit: viewModel.preferredWeightUnit,
+                initialReps: initReps,
+                initialWeight: initWeight
+            ) { reps, weightKg in
                 viewModel.updateSet(set, reps: reps, weight: weightKg)
             }
-        } message: {
-            Text("Edit reps and weight for this set.")
+            .presentationDetents([.height(280)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(20)
         }
         .sheet(item: $exercisePickerVM) { pickerVM in
             ExercisePickerView(viewModel: pickerVM) { definition in
@@ -228,20 +221,13 @@ struct WorkoutDetailView: View {
                 .onTapGesture {
                     guard viewModel.isEditing else { return }
                     editingSet = set
-                    editSetReps = "\(set.reps)"
-                    editSetWeight = set.weight.map { formatWeightForInput($0) } ?? ""
-                    showingEditSet = true
                 }
             }
 
             // Add Set button — edit mode only
             if viewModel.isEditing {
                 Button {
-                    addSetExercise = exercise
-                    let lastSet = sortedSets.last
-                    addSetReps = lastSet.map { "\($0.reps)" } ?? "10"
-                    addSetWeight = lastSet?.weight.map { formatWeightForInput($0) } ?? ""
-                    showingAddSet = true
+                    addSetForExercise = exercise
                 } label: {
                     Label("Add Set", systemImage: "plus.circle")
                         .font(.subheadline)
@@ -328,5 +314,151 @@ struct WorkoutDetailView: View {
             return String(format: "%.1fk", volume / 1000)
         }
         return "\(Int(volume))"
+    }
+}
+
+// MARK: - DetailAddSetSheet
+
+private struct DetailAddSetSheet: View {
+
+    let weightUnit: WeightUnit
+    let onAdd: (Int, Double?) -> Void
+
+    @State private var reps:   String
+    @State private var weight: String
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: Field?
+
+    private enum Field { case reps, weight }
+
+    init(weightUnit: WeightUnit,
+         initialReps: String,
+         initialWeight: String,
+         onAdd: @escaping (Int, Double?) -> Void) {
+        self.weightUnit = weightUnit
+        self.onAdd      = onAdd
+        _reps   = State(initialValue: initialReps)
+        _weight = State(initialValue: initialWeight)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                field("Reps", text: $reps, keyboard: .numberPad, focus: .reps)
+                field("Weight (\(weightUnit.displayName), optional)", text: $weight, keyboard: .decimalPad, focus: .weight)
+                Spacer()
+                Button {
+                    guard let r = Int(reps), r > 0 else { return }
+                    let kg = Double(weight).map { weightUnit.toKilograms($0) }
+                    onAdd(r, kg)
+                    dismiss()
+                } label: {
+                    Text("Add Set").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled((Int(reps) ?? 0) <= 0)
+            }
+            .padding(20)
+            .navigationTitle("Add Set")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { focused = .reps }
+        }
+    }
+
+    @ViewBuilder
+    private func field(_ label: String, text: Binding<String>, keyboard: UIKeyboardType, focus: Field) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
+            TextField(label, text: text)
+                .keyboardType(keyboard)
+                .font(.title3)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(.fill.quaternary)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .focused($focused, equals: focus)
+        }
+    }
+}
+
+// MARK: - DetailEditSetSheet
+
+private struct DetailEditSetSheet: View {
+
+    let weightUnit: WeightUnit
+    let onSave: (Int, Double?) -> Void
+
+    @State private var reps:   String
+    @State private var weight: String
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: Field?
+
+    private enum Field { case reps, weight }
+
+    init(weightUnit: WeightUnit,
+         initialReps: String,
+         initialWeight: String,
+         onSave: @escaping (Int, Double?) -> Void) {
+        self.weightUnit = weightUnit
+        self.onSave     = onSave
+        _reps   = State(initialValue: initialReps)
+        _weight = State(initialValue: initialWeight)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                field("Reps", text: $reps, keyboard: .numberPad, focus: .reps)
+                field("Weight (\(weightUnit.displayName), optional)", text: $weight, keyboard: .decimalPad, focus: .weight)
+                Spacer()
+                Button {
+                    guard let r = Int(reps), r > 0 else { return }
+                    let kg = Double(weight).map { weightUnit.toKilograms($0) }
+                    onSave(r, kg)
+                    dismiss()
+                } label: {
+                    Text("Save").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled((Int(reps) ?? 0) <= 0)
+            }
+            .padding(20)
+            .navigationTitle("Edit Set")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { focused = .reps }
+        }
+    }
+
+    @ViewBuilder
+    private func field(_ label: String, text: Binding<String>, keyboard: UIKeyboardType, focus: Field) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
+            TextField(label, text: text)
+                .keyboardType(keyboard)
+                .font(.title3)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(.fill.quaternary)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .focused($focused, equals: focus)
+        }
     }
 }
