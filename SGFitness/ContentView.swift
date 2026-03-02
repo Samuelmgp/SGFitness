@@ -180,6 +180,17 @@ struct ContentView: View {
             if let existing = users.first {
                 user = existing
                 initViewModels(user: existing)
+                // Crash recovery: if a session has no completedAt it was interrupted.
+                // Restore it so the user can continue where they left off.
+                let incompleteDescriptor = FetchDescriptor<WorkoutSession>(
+                    predicate: #Predicate { $0.completedAt == nil }
+                )
+                if let incompleteSessions = try? modelContext.fetch(incompleteDescriptor),
+                   let interrupted = incompleteSessions.first(where: { $0.user?.id == existing.id }) {
+                    let vm = ActiveWorkoutViewModel(modelContext: modelContext, user: existing)
+                    vm.resumeSession(interrupted)
+                    activeWorkoutVM = vm
+                }
                 // One-time migration: build stored PRs if none exist yet.
                 let prCheck = FetchDescriptor<PersonalRecord>()
                 if let prRecords = try? modelContext.fetch(prCheck), prRecords.isEmpty {

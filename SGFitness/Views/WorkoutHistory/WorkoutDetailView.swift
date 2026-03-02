@@ -38,6 +38,9 @@ struct WorkoutDetailView: View {
                 Divider()
 
                 // MARK: - Exercise List
+                // Reading refreshCounter establishes an @Observable subscription so
+                // the list re-renders when exercises are added or removed.
+                let _ = viewModel.refreshCounter
                 ForEach(viewModel.exercises, id: \.id) { exercise in
                     exerciseSection(exercise)
                 }

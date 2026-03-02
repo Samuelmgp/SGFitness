@@ -22,6 +22,10 @@ final class WorkoutSession {
     var updatedAt: Date
     var targetDurationMinutes: Int?
 
+    /// True when this session was started as a manual log (no live timer).
+    /// Persisted so crash recovery knows whether to restart the elapsed timer.
+    var isManualEntry: Bool = false
+
     // MARK: - Calendar Intelligence
 
     /// Raw string backing for WorkoutStatus enum.

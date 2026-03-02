@@ -316,6 +316,7 @@ final class ActiveWorkoutViewModel: Identifiable {
     func startManualEntry(name: String, startedAt: Date = .now) {
         let session = WorkoutSession(name: name, startedAt: startedAt, user: user)
         session.targetDurationMinutes = user.targetWorkoutMinutes
+        session.isManualEntry = true
         modelContext.insert(session)
         self.session = session
         isManualEntry = true
@@ -381,12 +382,36 @@ final class ActiveWorkoutViewModel: Identifiable {
         }
 
         session.targetDurationMinutes = template.targetDurationMinutes ?? user.targetWorkoutMinutes
+        session.isManualEntry = true
 
         self.session = session
         isManualEntry = true
         persistChanges()
         // Timer intentionally not started — user will supply duration on finish.
         // PR baselines are not loaded — no live PR detection in manual entry.
+    }
+
+    /// Resume an interrupted session after an app crash or force-quit.
+    ///
+    /// The session was already persisted (startFrom*/startAdHoc/startManualEntry all
+    /// call persistChanges() immediately). This method wires the existing session
+    /// back into the ViewModel without re-creating any data.
+    ///
+    /// - Live sessions: elapsed timer is restarted so it shows the correct running
+    ///   total (computed from Date.now - session.startedAt, so it's always accurate
+    ///   even after a long gap).
+    /// - Manual-entry sessions: no timer; the user will supply duration on finish.
+    /// - PR baselines are loaded so new sets logged after recovery still detect PRs.
+    func resumeSession(_ session: WorkoutSession) {
+        self.session = session
+        isManualEntry = session.isManualEntry
+        if !isManualEntry {
+            startElapsedTimer()
+        }
+        // Load baselines so live PR detection works for any sets logged post-recovery.
+        for exerciseSession in exercises {
+            loadBaseline(for: exerciseSession)
+        }
     }
 
     // MARK: - Exercise Management

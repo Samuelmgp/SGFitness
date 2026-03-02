@@ -22,6 +22,11 @@ final class WorkoutDetailViewModel {
     /// save() knows to trigger a full PR rebuild on the way out of edit mode.
     private var needsPRRebuild = false
 
+    /// Incremented after relationship mutations (add/remove exercise, add/remove set)
+    /// to force the view to re-render. SwiftData relationship array inserts/deletes
+    /// do not reliably fire @Observable notifications on the parent ViewModel.
+    var refreshCounter: Int = 0
+
     /// Exercises sorted by order.
     var exercises: [ExerciseSession] {
         session.exercises.sorted { $0.order < $1.order }
@@ -111,6 +116,7 @@ final class WorkoutDetailViewModel {
         exerciseSession.exerciseDefinition = definition
         modelContext.insert(exerciseSession)
         session.updatedAt = .now
+        refreshCounter += 1
     }
 
     /// Delete an exercise and all its sets, recomputing order on survivors.
@@ -120,6 +126,7 @@ final class WorkoutDetailViewModel {
         for (newOrder, ex) in remaining.enumerated() { ex.order = newOrder }
         session.updatedAt = .now
         needsPRRebuild = true
+        refreshCounter += 1
     }
 
     func updateEffort(_ exercise: ExerciseSession, effort: Int) {

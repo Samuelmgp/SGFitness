@@ -43,13 +43,14 @@ WorkoutSession >── WorkoutTemplate (nullify — deleting template preserves 
 - `User.bodyWeightKg: Double?` — stored in kg regardless of display preference.
 - `User.targetWorkoutDaysPerWeek: Int?` — nil = no goal; drives calendar missed-day threshold via `ceil(7/freq)`.
 - `User.targetWorkoutMinutes: Int?` — nil = no goal; set as default `targetDurationMinutes` on new sessions.
+- `WorkoutSession.isManualEntry: Bool` — persisted flag (`false` by default) set to `true` by `startManualEntry` and `startManualEntryFromTemplate`. Read by `resumeSession()` on crash recovery to decide whether to restart the elapsed timer.
 
 ### ViewModels (`SGFitness/ViewModels/`)
 
 All ViewModels use `@Observable` (Observation framework), **not** `ObservableObject`. Views bind with `@Bindable var viewModel:`.
 
 **Key VMs:**
-- `ActiveWorkoutViewModel` — live workout session; PR detection; manual entry mode; `saveAsTemplate()`; `uncompleteSet()`
+- `ActiveWorkoutViewModel` — live workout session; PR detection; manual entry mode; `saveAsTemplate()`; `uncompleteSet()`; `resumeSession()` for crash recovery
 - `TemplateEditorViewModel` — create/edit templates with buffered fields + `exercisesModified` flag
 - `ExercisePickerViewModel` — catalog search + recently used; `createCustomExercise()` + `updateExercise()` accept `exerciseType`
 - `PRsViewModel` — computes display-ready PRs from `PersonalRecord` objects stored by `PersonalRecordService`
@@ -58,14 +59,14 @@ All ViewModels use `@Observable` (Observation framework), **not** `ObservableObj
 
 **Patterns:**
 - `@ObservationIgnored` on Timer properties and PR baseline dicts to prevent spurious view updates
-- `refreshCounter: Int` trick to force view invalidation when SwiftData relationship mutations don't trigger `@Observable`
+- `refreshCounter: Int` trick to force view invalidation when SwiftData relationship mutations don't trigger `@Observable`. Used in both `ActiveWorkoutViewModel` and `WorkoutDetailViewModel` — increment after any `addExercise`/`removeExercise`, and read it in the view body with `let _ = viewModel.refreshCounter` before the `ForEach`.
 - Explicit `modelContext.save()` after batch operations; rely on auto-save for individual mutations
 - **ViewModel stability in sheets**: always store sheet VMs as `@State private var vm: SomeVM?` on the parent view and initialize only on button tap. Never create them inline in a sheet closure — the parent view may re-render frequently (e.g. the active workout timer ticks every second), which would recreate the VM and wipe its state.
 
 ### Views (`SGFitness/Views/`)
 
 - `ContentView.swift` — Root TabView (Home, Templates, History, Profile), user bootstrapping, data seeding, onboarding sheet. Workout lifecycle: `startFromTemplate()`, `startAdHoc()`, `logWorkout()` (manual entry), `logWorkoutFromTemplate()`.
-- `bootstrapUser()` runs once on first launch: creates User, seeds 27 exercises across 6 muscle groups, creates 3 example templates.
+- `bootstrapUser()` runs on every launch (not just first): fetches the existing user or creates one. After fetching, it checks for any `WorkoutSession` with `completedAt == nil` — if found, creates an `ActiveWorkoutViewModel` and calls `resumeSession()` to reopen the interrupted workout as a `.fullScreenCover`. On first launch: seeds 27 exercises across 6 muscle groups and creates 3 example templates.
 - Active workout presented via `.fullScreenCover`; exercise picker via `.sheet`.
 - Navigation uses `NavigationStack` + `NavigationLink(value:)` + `.navigationDestination(for:)`.
 - Input for reps/weight uses **`.sheet` with a private struct** (not `.alert`). Sheets decouple the dismiss animation from the parent `@Observable` re-render, avoiding a visible hitch when SwiftData mutations fire during alert dismiss.
@@ -87,7 +88,7 @@ All ViewModels use `@Observable` (Observation framework), **not** `ObservableObj
 
 **ExerciseCardView / SetCircleRow** — accept `weightUnit`, `onRemoveSet`, `onDeselectSet` parameters.
 - Circle button tap: completed set → `onDeselectSet`; incomplete set → `onComplete` with current values.
-- Long-press: opens `EditSetSheet` (half-sheet) for both complete and incomplete sets. Title = "Edit Set" / "Edit & Complete"; button = "Save" / "Complete".
+- Long-press: opens `EditSetSheet` (half-sheet) for both complete and incomplete sets. Title = "Edit Set" / "Edit & Complete"; button = "Save" / "Complete". Both sheets accept an `exercise: String` parameter and display the exercise name as a subtitle ("New Set of X" / "Modifying a set of X").
 - "Add Set" button opens `AddSetSheet` (half-sheet). Both sheets live as `private struct` in `ExerciseRowView.swift`.
 - Swipe left (when `onRemoveSet` provided): reveals a red Delete button via `DragGesture(minimumDistance: 20)` registered with `.simultaneousGesture` (avoids consuming vertical scroll).
 - All sets start pre-completed in "Log from Template" mode (unique to that flow).
@@ -168,11 +169,20 @@ PRs are stored as `PersonalRecord` SwiftData `@Model` objects and managed by `Pe
 
 When the user taps "Log a Workout", `ContentView` calls `vm.startManualEntry(name:startedAt:)` which:
 - Creates the session without starting the elapsed timer.
-- Sets `isManualEntry = true`.
+- Sets `isManualEntry = true` on both the ViewModel and the persisted `WorkoutSession.isManualEntry` field.
 
 When a template is selected, `vm.startManualEntryFromTemplate(_:name:startedAt:)` is called instead — all sets are pre-marked completed.
 
 On finish, `finishWorkout(manualDurationMinutes:)` sets `completedAt = startedAt + duration` so history shows the correct elapsed time.
+
+### Crash Recovery
+
+If the app is force-quit or crashes during an active workout, the `WorkoutSession` survives in SwiftData (it was explicitly saved on start). On next launch, `bootstrapUser()` fetches any session with `completedAt == nil` belonging to the current user and calls `ActiveWorkoutViewModel.resumeSession(_ session:)`:
+- Assigns the session to the ViewModel.
+- Reads `session.isManualEntry` to restore the correct mode.
+- Restarts the elapsed timer for live sessions (recomputed from `startedAt` so it's always accurate after any gap).
+- Loads PR baselines so newly logged sets can still earn PRs.
+- The existing `.fullScreenCover(item: $activeWorkoutVM)` in `ContentView` then presents `ActiveWorkoutView` automatically.
 
 ### Save as Template
 
@@ -232,8 +242,8 @@ SGFitness/
     WorkoutHistory/
       YearGridView.swift          — yellow border on PR days
       YearGridViewModel.swift
-      WorkoutDetailView.swift     — read + edit mode; Add/Edit set via DetailAddSetSheet/DetailEditSetSheet (sheets, not alerts)
-      WorkoutDetailViewModel.swift — needsPRRebuild flag; calls rebuildAllPRs() in save() when set data changed
+      WorkoutDetailView.swift     — read + edit mode; Add/Edit set via DetailAddSetSheet/DetailEditSetSheet (sheets, not alerts); reads `viewModel.refreshCounter` before exercise ForEach to subscribe to add/remove updates
+      WorkoutDetailViewModel.swift — needsPRRebuild flag; calls rebuildAllPRs() in save() when set data changed; refreshCounter incremented by addExercise/removeExercise
     ProfileView.swift             — Settings, Goals (edit sheet), Body Measurements, Stats, Library sections
     OnboardingView.swift          — name, unit, height (wheel pickers), body weight, workout goals
 ```

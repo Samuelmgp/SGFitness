@@ -158,6 +158,7 @@ struct ExerciseCardView: View {
             let initDuration = last?.durationSeconds.map { formatDuration($0) } ?? ""
 
             AddSetSheet(
+                exercise: exercise.name,
                 isCardio: isCardio,
                 weightUnit: weightUnit,
                 initialReps: initReps,
@@ -197,6 +198,7 @@ struct ExerciseCardView: View {
 
 private struct AddSetSheet: View {
 
+    let exercise: String
     let isCardio:   Bool
     let weightUnit: WeightUnit
     let onLog:      (Int, Double?, Int?) -> Void
@@ -210,12 +212,14 @@ private struct AddSetSheet: View {
 
     private enum InputField { case primary, secondary }
 
-    init(isCardio: Bool,
+    init(exercise: String,
+         isCardio: Bool,
          weightUnit: WeightUnit,
          initialReps: String,
          initialWeight: String,
          initialDuration: String,
          onLog: @escaping (Int, Double?, Int?) -> Void) {
+        self.exercise   = exercise
         self.isCardio   = isCardio
         self.weightUnit = weightUnit
         self.onLog      = onLog
@@ -234,6 +238,7 @@ private struct AddSetSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
+                Text("New Set of \(exercise)")
 
                 // Primary field — Reps (strength) or Distance in metres (cardio)
                 inputField(
@@ -333,6 +338,7 @@ private struct AddSetSheet: View {
 
 private struct EditSetSheet: View {
 
+    let exercise:     String
     let isCardio:     Bool
     let weightUnit:   WeightUnit
     let wasCompleted: Bool
@@ -347,13 +353,15 @@ private struct EditSetSheet: View {
 
     private enum InputField { case primary, secondary }
 
-    init(isCardio: Bool,
+    init(exercise: String,
+         isCardio: Bool,
          weightUnit: WeightUnit,
          wasCompleted: Bool,
          initialReps: String,
          initialWeight: String,
          initialDuration: String,
          onSave: @escaping (Int, Double?, Int?) -> Void) {
+        self.exercise     = exercise
         self.isCardio     = isCardio
         self.weightUnit   = weightUnit
         self.wasCompleted = wasCompleted
@@ -371,7 +379,7 @@ private struct EditSetSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-
+                Text("Modifying a set of \(exercise )")
                 inputField(
                     label:    isCardio ? "Distance (m)" : "Reps",
                     text:     $reps,
@@ -530,6 +538,7 @@ struct SetCircleRow: View {
         )
         .sheet(isPresented: $showingEdit) {
             EditSetSheet(
+                exercise: set.exerciseSession?.name ?? "",
                 isCardio: isCardio,
                 weightUnit: weightUnit,
                 wasCompleted: editingWasCompleted,
